@@ -1,0 +1,90 @@
+[project]
+name = "drone-environment"
+version = "0.1.0"
+description = ""
+authors = [
+    { name = "Bussler", email = "maarten.bussler@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "maturin>=1.8.3,<2.0.0",
+    "matplotlib>=3.10.1,<4.0.0",
+    "numpy>=2.2.4,<3.0.0",
+    "pillow>=11.2.1,<12.0.0",
+    "stable-baselines3>=2.6.0,<3.0.0",
+    "gymnasium>=1.1.1,<2.0.0",
+    "tensorboard>=2.19.0,<3.0.0",
+    "skrl[torch]>=1.4.3,<2.0.0",
+    "pyyaml>=6.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "isort>=6.0.1",
+    "mypy>=1.16.0",
+    "pytest>=8.4.0",
+    "ruff>=0.11.13",
+]
+
+[build-system]
+requires = ["maturin>=1.8.3,<2.0.0"]
+build-backend = "maturin"
+
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "drone_environment._lib"
+
+[tool.uv]
+# Rebuild package when any rust files change
+cache-keys = [{file = "pyproject.toml"}, {file = "rust/Cargo.toml"}, {file = "**/*.rs"}]
+# Uncomment to build rust code in development mode
+config-settings = { build-args = '--profile=dev' }
+
+
+[tool.ruff]
+# Enable Pyflakes `E` and `F` codes by default.
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["ANN101", "FBT003", "ERA001", "TD", "FIX002", "COM812", "T201", "W293", "PGH003", "S101", "ANN102", "PTH110", "PTH123", "N802", "BLE001", "PLR0913", "S311", "G004"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.isort]
+line_length = 110
+profile = "black"
+
+[tool.mypy]
+warn_redundant_casts = true
+# warn_unused_ignores = true TODO: set it back once everything is getting installed in CI-CD p.line
+warn_no_return = true
+warn_unreachable = true
+
+# Untyped Definitions and Calls
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+ignore_missing_imports = true
+explicit_package_bases = true
+
+exclude = '.git|.vscode|__pycache__|playground|.venv'

@@ -1,0 +1,16 @@
+[package]
+name = "drone-environment"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "drone_environment"
+crate-type = ["cdylib"]
+
+[dependencies]
+#pyo3 = { version = "0.25.0", features = ["extension-module"] }
+nalgebra = "0.33.2"
+meval = "0.2.0"
+
+[dependencies.pyo3]
+version = "0.25.0"
