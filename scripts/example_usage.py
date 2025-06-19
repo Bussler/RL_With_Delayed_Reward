@@ -34,10 +34,9 @@ obs = env.reset(de.Vec3(0.0, 0.0, 0.0))
 # Number of simulation steps
 num_steps = 200
 
-# Storage for positions - use lists of lists to handle varying number of targets
+# Storage for positions - use dictionaries keyed by target_id to handle target removal
 player_positions = []
-target_positions = []
-active_targets = []  # Track which targets are active in each frame
+target_positions_by_frame = []  # List of dicts: [{target_id: (x,y,z), ...}, ...]
 
 # Run simulation and record positions
 for i in range(num_steps):
@@ -47,12 +46,12 @@ for i in range(num_steps):
 
     player_positions.append((player_pos.x, player_pos.y, player_pos.z))
 
-    # Store target positions for this frame
-    # Example action: move in the direction of the first available target
-    frame_targets = []
+    # Store target positions for this frame using target IDs
+    frame_targets = {}
     direction = None
-    for _, target_position in current_targets:
-        frame_targets.append((target_position.x, target_position.y, target_position.z))
+    for target_id, target_position in current_targets:
+        target_pos = (target_position.x, target_position.y, target_position.z)
+        frame_targets[target_id] = target_pos
 
         if direction is None:
             direction = de.Vec3(
@@ -64,8 +63,7 @@ for i in range(num_steps):
     if direction is None:
         direction = de.Vec3(0.0, 0.0, 0.0)
 
-    target_positions.append(frame_targets)
-    active_targets.append(len(current_targets))
+    target_positions_by_frame.append(frame_targets)
 
     # Take a step in the environment
     obs, reward, done, info = env.step(direction)
@@ -76,25 +74,24 @@ for i in range(num_steps):
 player_positions = np.array(player_positions)
 
 # Find the overall min and max ranges for consistent plotting
-all_positions = [pos for frame_targets in target_positions for pos in frame_targets]
+all_positions = []
+for frame_targets in target_positions_by_frame:
+    all_positions.extend(frame_targets.values())
 all_positions.extend([(p[0], p[1], p[2]) for p in player_positions])
-# all_positions = np.array(all_positions) if all_positions else np.array([[0, 0, 0]])
 
-max_range = np.max(all_positions, axis=0).max()
-min_range = np.min(all_positions, axis=0).min()
+if all_positions:
+    all_positions = np.array(all_positions)
+    max_range = np.max(all_positions)
+    min_range = np.min(all_positions)
+else:
+    max_range, min_range = 10, -10
 
 # Create figure for animation
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection="3d")
 
-# Target colors for consistency
-target_colors = [
-    "red",
-    "green",
-    "orange",
-    "purple",
-    "cyan",
-]  # Add more colors if needed
+# Color map for different targets
+colors = ["red", "green", "orange", "purple", "brown", "pink", "gray", "olive"]
 
 
 # Animation update function
@@ -107,42 +104,47 @@ def update(frame: int) -> None:
         player_positions[frame, 1],
         player_positions[frame, 2],
         color="blue",
+        marker="o",
         s=100,
         label="Player",
     )
 
     # Plot active targets for this frame
-    frame_targets = target_positions[frame]
-    for i, target_pos in enumerate(frame_targets):
-        color = target_colors[i % len(target_colors)]
+    frame_targets = target_positions_by_frame[frame]
+    for target_id, target_pos in frame_targets.items():
+        color = colors[target_id % len(colors)]
+
         ax.scatter(
             target_pos[0],
             target_pos[1],
             target_pos[2],
             color=color,
+            marker="o",
             s=100,
-            label=f"Target {i + 1}",
+            label=f"Target {target_id}",
         )
 
-        # Plot trails for this target (last 20 positions)
-        start_idx = max(0, frame - 20)
+        # Build trail for this target by looking back through previous frames
         trail_positions = []
-        for f in range(start_idx, frame + 1):
-            if f < len(target_positions) and i < len(target_positions[f]):
-                trail_positions.append(target_positions[f][i])
+        start_frame = max(0, frame - 19)  # Last 20 positions including current
 
-        if trail_positions:
-            trail_positions = np.array(trail_positions)
+        for f in range(start_frame, frame + 1):
+            if f < len(target_positions_by_frame) and target_id in target_positions_by_frame[f]:
+                trail_positions.append(target_positions_by_frame[f][target_id])
+
+        # Plot trail if we have more than one position
+        if len(trail_positions) > 1:
+            trail_array = np.array(trail_positions)
             ax.plot(
-                trail_positions[:, 0],
-                trail_positions[:, 1],
-                trail_positions[:, 2],
+                trail_array[:, 0],
+                trail_array[:, 1],
+                trail_array[:, 2],
                 color=color,
                 alpha=0.5,
             )
 
     # Plot player trail (last 20 positions)
-    start_idx = max(0, frame - 20)
+    start_idx = max(0, frame - 19)
     ax.plot(
         player_positions[start_idx : frame + 1, 0],
         player_positions[start_idx : frame + 1, 1],
@@ -161,7 +163,7 @@ def update(frame: int) -> None:
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_zlabel("Z")
-    ax.set_title(f"Drone Environment Simulation - Frame {frame}\nActive Targets: {active_targets[frame]}")
+    ax.set_title(f"Drone Environment Simulation - Frame {frame}\nActive Targets: {len(frame_targets)}")
     ax.legend()
 
 
