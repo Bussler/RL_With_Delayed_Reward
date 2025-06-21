@@ -7,7 +7,7 @@ use meval::eval_str;
 // 3D Vector representation
 #[pyclass]
 #[derive(Clone, Debug)]
-struct Vec3 {
+pub struct Vec3 {
     #[pyo3(get, set)]
     x: f64,
     #[pyo3(get, set)]
@@ -19,7 +19,7 @@ struct Vec3 {
 #[pymethods]
 impl Vec3 {
     #[new]
-    fn new(x: f64, y: f64, z: f64) -> Self {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
         Vec3 { x, y, z }
     }
 
@@ -178,7 +178,7 @@ impl Player {
 
 // Environment for RL training
 #[pyclass]
-struct DroneEnvironment {
+pub struct DroneEnvironment {
     player: Player,
     targets: Vec<Target>,
     time: f64,
@@ -194,7 +194,7 @@ struct DroneEnvironment {
 #[pymethods]
 impl DroneEnvironment {
     #[new]
-    fn new(
+    pub fn new(
         player_position: Vec3, 
         player_speed: f64,
         dt: f64,
@@ -214,11 +214,11 @@ impl DroneEnvironment {
         }
     }
 
-    fn add_target(&mut self, target_id: usize, position: Vec3, velocity: Vec3, trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
+    pub fn add_target(&mut self, target_id: usize, position: Vec3, velocity: Vec3, trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
         self.original_targets.push(Target::new(target_id, position, velocity, trajectory_fn, max_flight_time));
     }
 
-    fn reset(&mut self, player_position: Option<Vec3>) -> PyResult<Py<PyDict>> {
+    pub fn reset(&mut self, player_position: Option<Vec3>) -> PyResult<Py<PyDict>> {
         self.time = 0.0;
         self.done = false;
         
@@ -241,7 +241,7 @@ impl DroneEnvironment {
         })
     }
 
-    fn step(&mut self, action: Vec3) -> PyResult<Py<PyTuple>> {
+    pub fn step(&mut self, action: Vec3) -> PyResult<Py<PyTuple>> {
         // Move player according to action
         self.player.move_direction(action, self.dt);
         
@@ -335,23 +335,23 @@ impl DroneEnvironment {
         Ok(dict.unbind())
     }
     
-    fn get_player_position(&self) -> Vec3 {
+    pub fn get_player_position(&self) -> Vec3 {
         self.player.position.clone()
     }
     
-    fn set_player_speed(&mut self, speed: f64) {
+    pub fn set_player_speed(&mut self, speed: f64) {
         self.player.speed = speed;
     }
     
-    fn get_target_positions(&self) -> Vec<(usize, Vec3)> {
+    pub fn get_target_positions(&self) -> Vec<(usize, Vec3)> {
         self.targets.iter().map(|t| (t.id, t.position.clone())).collect()
     }
 
-    fn get_target_by_id(&self, id: usize) -> Option<Target> {
+    pub fn get_target_by_id(&self, id: usize) -> Option<Target> {
         self.targets.iter().find(|t| t.id == id).cloned()
     }
 
-    fn get_time(&self) -> f64 {
+    pub fn get_time(&self) -> f64 {
         return self.time;
     }
 }

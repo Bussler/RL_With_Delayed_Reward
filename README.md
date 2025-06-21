@@ -12,6 +12,16 @@ uv venv && uv sync
 ```
 
 
+### In case of python linker errors while building rust files:
+
+Try to set the `PYO3_PYTHON` environment variable to the python executable:
+```
+source .venv/bin/activate
+export PYO3_PYTHON=$(which python3)
+cargo build
+```
+
+
 ### Linting
 
 Linting and testing can easily be triggered via the makefile:
