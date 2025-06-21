@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation
 
 # Create environment
 env = de.DroneEnvironment(
-    player_position=de.Vec3(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=200.0, collision_radius=0.5
+    player_position=(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=200.0, collision_radius=0.5
 )
 
 # Add targets with different trajectories
@@ -13,8 +13,8 @@ env = de.DroneEnvironment(
 # Linear motion
 env.add_target(
     target_id=0,
-    position=de.Vec3(-10.0, -10.0, 3.0),
-    velocity=de.Vec3(1.0, 1.0, 0.0),
+    position=(-10.0, -10.0, 3.0),
+    velocity=(1.0, 1.0, 0.0),
     trajectory_fn=None,  # None/ Empty string means use velocity for linear motion
     max_flight_time=None,
 )
@@ -22,14 +22,14 @@ env.add_target(
 # Circular motion in XY plane
 env.add_target(
     target_id=1,
-    position=de.Vec3(10.0, 0.0, 5.0),
-    velocity=de.Vec3(0.0, 0.0, 0.0),
+    position=(10.0, 0.0, 5.0),
+    velocity=(0.0, 0.0, 0.0),
     trajectory_fn="7*cos(t), 7*sin(t), 5.0",
     max_flight_time=10,
 )
 
 # Reset environment and get initial observation
-obs = env.reset(de.Vec3(0.0, 0.0, 0.0))
+obs = env.reset((0.0, 0.0, 0.0))
 
 # Number of simulation steps
 num_steps = 200
@@ -44,24 +44,24 @@ for i in range(num_steps):
     player_pos = env.get_player_position()
     current_targets = env.get_target_positions()
 
-    player_positions.append((player_pos.x, player_pos.y, player_pos.z))
+    player_positions.append((player_pos[0], player_pos[1], player_pos[2]))
 
     # Store target positions for this frame using target IDs
     frame_targets = {}
     direction = None
     for target_id, target_position in current_targets:
-        target_pos = (target_position.x, target_position.y, target_position.z)
+        target_pos = (target_position[0], target_position[1], target_position[2])
         frame_targets[target_id] = target_pos
 
         if direction is None:
-            direction = de.Vec3(
-                target_position.x - player_pos.x,
-                target_position.y - player_pos.y,
-                target_position.z - player_pos.z,
+            direction = (
+                target_position[0] - player_pos[0],
+                target_position[1] - player_pos[1],
+                target_position[2] - player_pos[2],
             )
 
     if direction is None:
-        direction = de.Vec3(0.0, 0.0, 0.0)
+        direction = (0.0, 0.0, 0.0)
 
     target_positions_by_frame.append(frame_targets)
 

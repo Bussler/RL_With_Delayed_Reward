@@ -1,52 +1,20 @@
+mod actors;
+
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
-use nalgebra::{Vector3};
+use nalgebra::Vector3;
 use pyo3::IntoPyObjectExt;
 use meval::eval_str;
 
-// 3D Vector representation
-#[pyclass]
-#[derive(Clone, Debug)]
-pub struct Vec3 {
-    #[pyo3(get, set)]
-    x: f64,
-    #[pyo3(get, set)]
-    y: f64,
-    #[pyo3(get, set)]
-    z: f64,
+
+fn vector3_to_tuple(vec: Vector3<f64>) -> (f64, f64, f64) {
+    (vec.x, vec.y, vec.z)
 }
 
-#[pymethods]
-impl Vec3 {
-    #[new]
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Vec3 { x, y, z }
-    }
-
-    // Instead of returning Vector3, convert to a tuple which PyO3 can handle
-    fn to_tuple(&self) -> (f64, f64, f64) {
-        (self.x, self.y, self.z)
-    }
-
-    #[staticmethod]
-    fn from_tuple(tuple: (f64, f64, f64)) -> Self {
-        Vec3 { x: tuple.0, y: tuple.1, z: tuple.2 }
-    }
-}
-
-// Helper function to convert Vec3 to Vector3 (not exposed to Python)
-impl Vec3 {
-    fn to_vector3(&self) -> Vector3<f64> {
-        Vector3::new(self.x, self.y, self.z)
-    }
-
-    fn from_vector3(v: Vector3<f64>) -> Self {
-        Vec3 { x: v[0], y: v[1], z: v[2] }
-    }
-
-    fn distance(&self, other: &Vec3) -> f64 {
-        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2) + (self.z - other.z).powi(2)).sqrt()
-    }
+// Helper function to calculate distance between two Vector3 points
+// TODO check that this works!
+fn distance(a: Vector3<f64>, b: Vector3<f64>) -> f64 {
+    (a - b).norm()
 }
 
 // Target representation
@@ -55,10 +23,8 @@ impl Vec3 {
 struct Target {
     #[pyo3(get)]
     id: usize,
-    #[pyo3(get)]
-    position: Vec3,
-    #[pyo3(get)]
-    velocity: Vec3,
+    position: Vector3<f64>,
+    velocity: Vector3<f64>,
     trajectory_fn: Option<String>,
     time: f64,
     #[pyo3(get)]
@@ -70,17 +36,26 @@ struct Target {
 #[pymethods]
 impl Target {
     #[new]
-    fn new(id: usize, position: Vec3, velocity: Vec3, trajectory_fn: Option<String>, max_flight_time: Option<f64>) -> Self {
-
+    fn new(id: usize, position: (f64, f64, f64), velocity: (f64, f64, f64), trajectory_fn: Option<String>, max_flight_time: Option<f64>) -> Self {
         Target {
             id,
-            position,
-            velocity,
+            position: Vector3::new(position.0, position.1, position.2),
+            velocity: Vector3::new(velocity.0, velocity.1, velocity.2),
             trajectory_fn,
             time: 0.0,
             max_flight_time,
             expired: false,
         }
+    }
+
+    #[getter]
+    fn position(&self) -> (f64, f64, f64) {
+        vector3_to_tuple(self.position)
+    }
+
+    #[getter]
+    fn velocity(&self) -> (f64, f64, f64) {
+        vector3_to_tuple(self.velocity)
     }
 
     fn update(&mut self, dt: f64) -> bool {
@@ -107,7 +82,8 @@ impl Target {
                 let y_fn = components.get(1).unwrap_or(&"0.0").replace("t", &t.to_string()).replace("y", &self.position.y.to_string());
                 let z_fn = components.get(2).unwrap_or(&"0.0").replace("t", &t.to_string()).replace("z", &self.position.z.to_string());
                 
-                let prevPosition = self.position.clone();
+                // TODO check that this works as intended and we do not need a deep copy here!
+                let prev_position = self.position;
 
                 if let Ok(x_result) = eval_str(&x_fn) {
                     self.position.x = x_result;
@@ -123,20 +99,14 @@ impl Target {
                 
                 // Update velocity based on position change
                 // This is a simple approximation
-                self.velocity.x = (self.position.x - prevPosition.x) / dt;
-                self.velocity.y = (self.position.y - prevPosition.y) / dt;
-                self.velocity.z = (self.position.z - prevPosition.z) / dt;
+                self.velocity = (self.position - prev_position) / dt;
 
                 return true;
             }
         } 
         
-        self.position.x += self.velocity.x * dt;
-        self.position.y += self.velocity.y * dt;
-        self.position.z += self.velocity.z * dt;
-
+        self.position += self.velocity * dt;
         true
-        
     }
 }
 
@@ -144,8 +114,7 @@ impl Target {
 #[pyclass]
 #[derive(Clone, Debug)]
 struct Player {
-    #[pyo3(get)]
-    position: Vec3,
+    position: Vector3<f64>,
     #[pyo3(get, set)]
     speed: f64,
 }
@@ -153,25 +122,28 @@ struct Player {
 #[pymethods]
 impl Player {
     #[new]
-    fn new(position: Vec3, speed: f64) -> Self {
+    fn new(position: (f64, f64, f64), speed: f64) -> Self {
         Player {
-            position,
+            position: Vector3::new(position.0, position.1, position.2),
             speed,
         }
     }
 
-    fn move_direction(&mut self, direction: Vec3, dt: f64) {
+    #[getter]
+    fn position(&self) -> (f64, f64, f64) {
+        vector3_to_tuple(self.position)
+    }
+
+    fn move_direction(&mut self, direction: (f64, f64, f64), dt: f64) {
         // Normalize direction vector
-        let dir_vec = direction.to_vector3();
-        let norm = (dir_vec[0].powi(2) + dir_vec[1].powi(2) + dir_vec[2].powi(2)).sqrt();
+        let dir_vec = Vector3::new(direction.0, direction.1, direction.2);
+        let norm = dir_vec.norm();
         
         if norm > 0.0 {
             let normalized = dir_vec / norm;
             let movement = normalized * self.speed * dt;
             
-            self.position.x += movement[0];
-            self.position.y += movement[1];
-            self.position.z += movement[2];
+            self.position += movement;
         }
     }
 }
@@ -195,7 +167,7 @@ pub struct DroneEnvironment {
 impl DroneEnvironment {
     #[new]
     pub fn new(
-        player_position: Vec3, 
+        player_position: (f64, f64, f64), 
         player_speed: f64,
         dt: f64,
         max_time: f64,
@@ -214,16 +186,16 @@ impl DroneEnvironment {
         }
     }
 
-    pub fn add_target(&mut self, target_id: usize, position: Vec3, velocity: Vec3, trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
+    pub fn add_target(&mut self, target_id: usize, position: (f64, f64, f64), velocity: (f64, f64, f64), trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
         self.original_targets.push(Target::new(target_id, position, velocity, trajectory_fn, max_flight_time));
     }
 
-    pub fn reset(&mut self, player_position: Option<Vec3>) -> PyResult<Py<PyDict>> {
+    pub fn reset(&mut self, player_position: Option<(f64, f64, f64)>) -> PyResult<Py<PyDict>> {
         self.time = 0.0;
         self.done = false;
         
         if let Some(pos) = player_position {
-            self.player.position = pos;
+            self.player.position = Vector3::new(pos.0, pos.1, pos.2);
         }
         
         // Reset all targets to their initial state
@@ -241,7 +213,7 @@ impl DroneEnvironment {
         })
     }
 
-    pub fn step(&mut self, action: Vec3) -> PyResult<Py<PyTuple>> {
+    pub fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         // Move player according to action
         self.player.move_direction(action, self.dt);
         
@@ -260,7 +232,7 @@ impl DroneEnvironment {
         let mut reward = self.expired_missiles_this_step as f64;
         // Use retain to keep only targets that are not collided with
         self.targets.retain(|target| {
-            let dist = self.player.position.distance(&target.position);
+            let dist = distance(self.player.position, target.position);
             
             if dist < self.collision_radius {
                 reward += 1.0;
@@ -295,11 +267,7 @@ impl DroneEnvironment {
         let dict = PyDict::new(py);
         
         // Add player position
-        dict.set_item("player_position", (
-            self.player.position.x,
-            self.player.position.y,
-            self.player.position.z
-        )).unwrap();
+        dict.set_item("player_position", self.player.position()).unwrap();
         
         // Add target information
         let mut target_ids = Vec::new();
@@ -309,21 +277,10 @@ impl DroneEnvironment {
         
         for target in &self.targets {
             target_ids.push(target.id);
+            target_positions.push(target.position());
+            target_velocities.push(target.velocity());
 
-            target_positions.push((
-                target.position.x,
-                target.position.y,
-                target.position.z
-            ));
-            
-            target_velocities.push((
-                target.velocity.x,
-                target.velocity.y,
-                target.velocity.z
-            ));
-
-            let dist = self.player.position.distance(&target.position);
-            
+            let dist = distance(self.player.position, target.position);
             target_distances.push(dist);
         }
         
@@ -335,16 +292,16 @@ impl DroneEnvironment {
         Ok(dict.unbind())
     }
     
-    pub fn get_player_position(&self) -> Vec3 {
-        self.player.position.clone()
+    pub fn get_player_position(&self) -> (f64, f64, f64) {
+        self.player.position()
     }
     
     pub fn set_player_speed(&mut self, speed: f64) {
         self.player.speed = speed;
     }
     
-    pub fn get_target_positions(&self) -> Vec<(usize, Vec3)> {
-        self.targets.iter().map(|t| (t.id, t.position.clone())).collect()
+    pub fn get_target_positions(&self) -> Vec<(usize, (f64, f64, f64))> {
+        self.targets.iter().map(|t| (t.id, t.position())).collect()
     }
 
     pub fn get_target_by_id(&self, id: usize) -> Option<Target> {
@@ -360,7 +317,6 @@ impl DroneEnvironment {
 #[pymodule]
 #[pyo3(name="_lib")]
 fn drone_environment(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Vec3>()?;
     m.add_class::<Target>()?;
     m.add_class::<Player>()?;
     m.add_class::<DroneEnvironment>()?;
