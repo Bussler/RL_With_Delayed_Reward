@@ -7,7 +7,7 @@ use meval::eval_str;
 pub struct Target {
     pub id: usize,
     pub position: Vector3<f64>,
-    velocity: Vector3<f64>,
+    pub velocity: Vector3<f64>,
     trajectory_fn: Option<String>,
     pub time: f64,
     max_flight_time: Option<f64>,
