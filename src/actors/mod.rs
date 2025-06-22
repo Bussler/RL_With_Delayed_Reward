@@ -1,8 +1,8 @@
 pub mod player;
 pub mod target;
-use nalgebra::{Vector3};
+pub mod actor;
 
-pub trait Actor {
-    fn id(&self) -> usize;
-    fn position(&self) -> Vector3<f64>;
-}
+pub use crate::actors::player::Player;
+pub use crate::actors::target::Target;
+pub use crate::actors::actor::Actor;
+
