@@ -2,7 +2,7 @@
 
 ## Linting Targets ##
 
-linting: ruff isort mypy
+linting: cargo-fmt ruff isort mypy
 
 cargo-fmt:
 	@echo Running Cargo Fmt...

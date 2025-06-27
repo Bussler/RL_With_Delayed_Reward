@@ -1,32 +1,19 @@
 import drone_environment as de
 import matplotlib.pyplot as plt
 import numpy as np
+from drone_environment.utils import create_diverse_scenario
 from matplotlib.animation import FuncAnimation
 
 # Create environment
-env = de.DroneEnvironment(
+env = de.DoneEnvironmentWrapper(
     player_position=(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=200.0, collision_radius=0.5
 )
 
 # Add targets with different trajectories
 
 # Linear motion
-env.add_target(
-    target_id=0,
-    position=(-10.0, -10.0, 3.0),
-    velocity=(1.0, 1.0, 0.0),
-    trajectory_fn=None,  # None/ Empty string means use velocity for linear motion
-    max_flight_time=None,
-)
 
-# Circular motion in XY plane
-env.add_target(
-    target_id=1,
-    position=(10.0, 0.0, 5.0),
-    velocity=(0.0, 0.0, 0.0),
-    trajectory_fn="7*cos(t), 7*sin(t), 5.0",
-    max_flight_time=10,
-)
+create_diverse_scenario(env, num_targets=2)
 
 # Reset environment and get initial observation
 obs = env.reset((0.0, 0.0, 0.0))
@@ -49,7 +36,7 @@ for i in range(num_steps):
     # Store target positions for this frame using target IDs
     frame_targets = {}
     direction = None
-    for target_id, target_position in current_targets:
+    for target_id, target_position in current_targets.items():
         target_pos = (target_position[0], target_position[1], target_position[2])
         frame_targets[target_id] = target_pos
 

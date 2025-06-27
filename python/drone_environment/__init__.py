@@ -1,8 +1,4 @@
 from drone_environment._lib import (
-    DroneEnvironment,
-    Player,
-    Target,
-    Vec3,
+    DoneEnvironmentWrapper,
 )
-
-# from drone_environment.gym import DroneGymEnv
+from drone_environment.gym import DroneGymEnv
