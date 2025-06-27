@@ -1,4 +1,4 @@
-use crate::actors::actor::{Actor, vector3_to_tuple};
+use crate::actors::actor::{vector3_to_tuple, Actor};
 use nalgebra::Vector3;
 
 // Player representation
@@ -32,11 +32,11 @@ impl Player {
         // Normalize direction vector
         let dir_vec = Vector3::new(direction.0, direction.1, direction.2);
         let norm = dir_vec.norm();
-        
+
         if norm > 0.0 {
             let normalized = dir_vec / norm;
             let movement = normalized * self.speed * dt;
-            
+
             self.position += movement;
         }
     }

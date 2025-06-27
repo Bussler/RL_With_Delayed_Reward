@@ -1,4 +1,4 @@
-use nalgebra::{Vector3};
+use nalgebra::Vector3;
 
 pub trait Actor {
     fn id(&self) -> usize;

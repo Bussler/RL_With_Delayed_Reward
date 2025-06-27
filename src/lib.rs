@@ -1,13 +1,13 @@
 mod actors;
 mod observation_info_utils;
 
+use nalgebra::Vector3;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
-use nalgebra::Vector3;
 use pyo3::IntoPyObjectExt;
 
 use actors::{Actor, Player, Target};
-use observation_info_utils::{Observation, Information};
+use observation_info_utils::{Information, Observation};
 
 // Helper function to calculate distance between two Vector3 points
 fn distance(a: Vector3<f64>, b: Vector3<f64>) -> f64 {
@@ -29,11 +29,11 @@ pub struct DroneEnvironment {
 
 impl DroneEnvironment {
     pub fn new(
-        player_position: (f64, f64, f64), 
+        player_position: (f64, f64, f64),
         player_speed: f64,
         dt: f64,
         max_time: f64,
-        collision_radius: Option<f64>
+        collision_radius: Option<f64>,
     ) -> Self {
         DroneEnvironment {
             player: Player::new(1, player_position, player_speed),
@@ -48,17 +48,30 @@ impl DroneEnvironment {
         }
     }
 
-    pub fn add_target(&mut self, target_id: usize, position: (f64, f64, f64), velocity: (f64, f64, f64), trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
-        self.original_targets.push(Target::new(target_id, position, velocity, trajectory_fn, max_flight_time));
+    pub fn add_target(
+        &mut self,
+        target_id: usize,
+        position: (f64, f64, f64),
+        velocity: (f64, f64, f64),
+        trajectory_fn: Option<String>,
+        max_flight_time: Option<f64>,
+    ) {
+        self.original_targets.push(Target::new(
+            target_id,
+            position,
+            velocity,
+            trajectory_fn,
+            max_flight_time,
+        ));
     }
 
     pub fn reset(&mut self, player_position: Option<(f64, f64, f64)>) -> Observation {
         self.time = 0.0;
-        
+
         if let Some(pos) = player_position {
             self.player.position = Vector3::new(pos.0, pos.1, pos.2);
         }
-        
+
         // Reset all targets to their initial state
         for target in &mut self.original_targets {
             target.time = 0.0;
@@ -68,7 +81,7 @@ impl DroneEnvironment {
 
         self.expired_missiles_this_step = 0;
         self.hit_targets_this_step = 0;
-        
+
         // Return observation
         self.get_observation()
     }
@@ -76,24 +89,25 @@ impl DroneEnvironment {
     pub fn step(&mut self, action: (f64, f64, f64)) -> Observation {
         // Move player according to action
         self.player.move_direction(action, self.dt);
-        
+
         // Update targets
         let mut expired_target_ids = Vec::new();
         for target in &mut self.targets {
             let target_active = target.update(self.dt);
-            if !target_active{
+            if !target_active {
                 expired_target_ids.push(target.id);
             }
         }
         self.expired_missiles_this_step = expired_target_ids.len();
-        self.targets.retain(|target| !expired_target_ids.contains(&target.id));
-        
+        self.targets
+            .retain(|target| !expired_target_ids.contains(&target.id));
+
         // Check for collisions and calculate reward
         self.hit_targets_this_step = 0;
         // Use retain to keep only targets that are not collided with
         self.targets.retain(|target| {
             let dist = distance(self.player.position, target.position);
-            
+
             if dist < self.collision_radius {
                 self.hit_targets_this_step += 1;
                 false // Remove this target
@@ -101,10 +115,10 @@ impl DroneEnvironment {
                 true // Keep this target
             }
         });
-        
+
         // Update time
         self.time += self.dt;
-        
+
         // Return observation
         return self.get_observation();
     }
@@ -114,7 +128,7 @@ impl DroneEnvironment {
         let mut target_positions = Vec::new();
         let mut target_velocities = Vec::new();
         let mut target_distances = Vec::new();
-        
+
         for target in &self.targets {
             target_ids.push(target.id);
             target_positions.push(target.position);
@@ -123,7 +137,7 @@ impl DroneEnvironment {
             let dist = distance(self.player.position, target.position);
             target_distances.push(dist);
         }
-        
+
         Observation {
             player_position: self.player.position,
             target_ids,
@@ -140,15 +154,15 @@ impl DroneEnvironment {
             expired_missiles: self.expired_missiles_this_step,
         }
     }
-    
+
     pub fn get_player_position(&self) -> (f64, f64, f64) {
         self.player.position()
     }
-    
+
     pub fn set_player_speed(&mut self, speed: f64) {
         self.player.speed = speed;
     }
-    
+
     pub fn get_target_positions(&self) -> Vec<(usize, (f64, f64, f64))> {
         self.targets.iter().map(|t| (t.id, t.position())).collect()
     }
@@ -163,27 +177,46 @@ impl DroneEnvironment {
 }
 
 #[pyclass]
-struct DoneEnvironmentWrapper{
-    drone_environment: DroneEnvironment
+struct DoneEnvironmentWrapper {
+    drone_environment: DroneEnvironment,
 }
 
 #[pymethods]
 impl DoneEnvironmentWrapper {
     #[new]
     fn new(
-        player_position: (f64, f64, f64), 
+        player_position: (f64, f64, f64),
         player_speed: f64,
         dt: f64,
         max_time: f64,
-        collision_radius: Option<f64>
+        collision_radius: Option<f64>,
     ) -> Self {
         DoneEnvironmentWrapper {
-                drone_environment: DroneEnvironment::new(player_position, player_speed, dt, max_time, collision_radius)
+            drone_environment: DroneEnvironment::new(
+                player_position,
+                player_speed,
+                dt,
+                max_time,
+                collision_radius,
+            ),
         }
     }
 
-    fn add_target(&mut self, target_id: usize, position: (f64, f64, f64), velocity: (f64, f64, f64), trajectory_fn: Option<String>, max_flight_time: Option<f64>) {
-        self.drone_environment.add_target(target_id, position, velocity, trajectory_fn, max_flight_time);
+    fn add_target(
+        &mut self,
+        target_id: usize,
+        position: (f64, f64, f64),
+        velocity: (f64, f64, f64),
+        trajectory_fn: Option<String>,
+        max_flight_time: Option<f64>,
+    ) {
+        self.drone_environment.add_target(
+            target_id,
+            position,
+            velocity,
+            trajectory_fn,
+            max_flight_time,
+        );
     }
 
     fn reset(&mut self, player_position: Option<(f64, f64, f64)>) -> PyResult<Py<PyDict>> {
@@ -195,7 +228,8 @@ impl DoneEnvironmentWrapper {
 
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
-        let sim_reward = self.drone_environment.hit_targets_this_step - self.drone_environment.expired_missiles_this_step;
+        let sim_reward = self.drone_environment.hit_targets_this_step
+            - self.drone_environment.expired_missiles_this_step;
         let sim_info = self.drone_environment.get_information();
 
         // Convert the result to a PyTuple and calculate the reward, done, info
@@ -227,20 +261,20 @@ impl DoneEnvironmentWrapper {
     fn get_player_position(&self) -> (f64, f64, f64) {
         self.drone_environment.get_player_position()
     }
-    
+
     fn set_player_speed(&mut self, speed: f64) {
         self.drone_environment.set_player_speed(speed);
     }
-    
+
     fn get_target_positions(&self) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
             let dict = PyDict::new(py);
-            
+
             for target in &self.drone_environment.targets {
                 let position = (target.position.x, target.position.y, target.position.z);
                 dict.set_item(target.id, position)?;
             }
-            
+
             Ok(dict.unbind())
         })
     }
@@ -256,7 +290,7 @@ impl DoneEnvironmentWrapper {
 
 // Python module definition
 #[pymodule]
-#[pyo3(name="_lib")]
+#[pyo3(name = "_lib")]
 fn drone_environment(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DoneEnvironmentWrapper>()?;
     Ok(())

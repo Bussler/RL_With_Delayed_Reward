@@ -4,6 +4,10 @@
 
 linting: ruff isort mypy
 
+cargo-fmt:
+	@echo Running Cargo Fmt...
+	uv run cargo fmt
+
 ruff:
 	@echo Running Ruff...
 	uv run ruff format python/drone_environment/ scripts/
