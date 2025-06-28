@@ -3,7 +3,6 @@
 import random
 
 import yaml
-
 from drone_environment._lib import DoneEnvironmentWrapper
 
 
@@ -11,6 +10,11 @@ def read_yml(f_path: str) -> dict:
     """Read a yaml file to memory."""
     with open(f_path) as f:
         return yaml.safe_load(f)
+
+
+def _round_to_one_decimal(value: float) -> float:
+    """Round a float value to one decimal place."""
+    return round(value, 1)
 
 
 def generate_random_target(
@@ -34,9 +38,9 @@ def generate_random_target(
     """
     # Random starting position
     position = (
-        random.uniform(-arena_size, arena_size),
-        random.uniform(-arena_size, arena_size),
-        random.uniform(1.0, 10.0),  # Height between 1-10 units
+        _round_to_one_decimal(random.uniform(-arena_size, arena_size)),
+        _round_to_one_decimal(random.uniform(-arena_size, arena_size)),
+        _round_to_one_decimal(random.uniform(1.0, 10.0)),  # Height between 1-10 units
     )
 
     # Decide between linear motion (velocity) or trajectory function
@@ -46,14 +50,14 @@ def generate_random_target(
         # Generate trajectory-based target
         trajectory_fn = _generate_random_trajectory()
         velocity = (0.0, 0.0, 0.0)  # Not used for trajectory targets
-        max_flight_time = random.uniform(*max_flight_time_range)
+        max_flight_time = _round_to_one_decimal(random.uniform(*max_flight_time_range))
     else:
         # Generate linear motion target
         trajectory_fn = None
         velocity = (
-            random.uniform(-max_speed, max_speed),
-            random.uniform(-max_speed, max_speed),
-            random.uniform(-max_speed / 2, max_speed / 2),  # Slower vertical movement
+            _round_to_one_decimal(random.uniform(-max_speed, max_speed)),
+            _round_to_one_decimal(random.uniform(-max_speed, max_speed)),
+            _round_to_one_decimal(random.uniform(-max_speed / 2, max_speed / 2)),  # Slower vertical movement
         )
         max_flight_time = None  # Linear targets don't need flight time limit
 
@@ -81,12 +85,12 @@ def _generate_random_trajectory() -> str:
     trajectory_type = random.choice(trajectory_types)
 
     # Random parameters for trajectories
-    radius = random.uniform(3.0, 12.0)
-    frequency = random.uniform(0.5, 2.0)
-    amplitude = random.uniform(2.0, 8.0)
-    center_x = random.uniform(-5.0, 5.0)
-    center_y = random.uniform(-5.0, 5.0)
-    center_z = random.uniform(3.0, 8.0)
+    radius = _round_to_one_decimal(random.uniform(3.0, 12.0))
+    frequency = _round_to_one_decimal(random.uniform(0.5, 2.0))
+    amplitude = _round_to_one_decimal(random.uniform(2.0, 8.0))
+    center_x = _round_to_one_decimal(random.uniform(-5.0, 5.0))
+    center_y = _round_to_one_decimal(random.uniform(-5.0, 5.0))
+    center_z = _round_to_one_decimal(random.uniform(3.0, 8.0))
 
     if trajectory_type == "circular_xy":
         return (
@@ -104,7 +108,7 @@ def _generate_random_trajectory() -> str:
         )
 
     if trajectory_type == "spiral":
-        spiral_rate = random.uniform(0.1, 0.5)
+        spiral_rate = _round_to_one_decimal(random.uniform(0.1, 0.5))
         return f"{center_x} + {spiral_rate}*t*cos({frequency}*t), {center_y} + {spiral_rate}*t*sin({frequency}*t), {center_z}"
 
     if trajectory_type == "figure_eight":
@@ -120,7 +124,7 @@ def _generate_random_trajectory() -> str:
         return f"{center_x} + t, {center_y}, {center_z} + {amplitude}*sin({frequency}*t)"
 
     if trajectory_type == "helical":
-        vertical_speed = random.uniform(0.5, 2.0)
+        vertical_speed = _round_to_one_decimal(random.uniform(0.5, 2.0))
         return f"{center_x} + {radius}*cos({frequency}*t), {center_y} + {radius}*sin({frequency}*t), {center_z} + {vertical_speed}*t"
 
     # Fallback to simple circular

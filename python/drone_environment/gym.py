@@ -2,11 +2,10 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from gymnasium import spaces
-
 from drone_environment._lib import DoneEnvironmentWrapper
 from drone_environment.rendering import Renderer, RenderMode, get_renderer
-from drone_environment.utils import create_diverse_scenario, read_yml
+from drone_environment.utils import add_random_targets, read_yml
+from gymnasium import spaces
 
 
 class DroneGymEnv(gym.Env):
@@ -72,7 +71,7 @@ class DroneGymEnv(gym.Env):
             collision_radius=self.collision_radius,
         )
 
-        create_diverse_scenario(
+        add_random_targets(
             self.env, self.num_targets, arena_size, max_target_speed, 0.6, max_flight_time_range
         )
 
@@ -153,7 +152,7 @@ class DroneGymEnv(gym.Env):
                     shape=(3,),
                     dtype=np.float64,
                 ),
-                # Target IDs: variable length, but we'll pad to max_targets
+                # Target IDs: variable length, padding to max_targets
                 "target_ids": spaces.Box(
                     low=0,
                     high=self.num_targets - 1,
@@ -203,6 +202,7 @@ class DroneGymEnv(gym.Env):
         target_positions = observation_raw.get("target_positions", [])
         target_velocities = observation_raw.get("target_velocities", [])
         target_distances = observation_raw.get("target_distances", [])
+        time_left = observation_raw.get("time_left", 0.0)
 
         # Create padded arrays
         num_active_targets = len(target_ids)
@@ -223,8 +223,7 @@ class DroneGymEnv(gym.Env):
             target_mask[i] = 1
 
         # Calculate time left
-        current_time = self.env.get_time()
-        time_left = np.array([max(0.0, self.max_time - current_time)], dtype=np.float64)
+        time_left = np.array([time_left], dtype=np.float64)
 
         return {
             "player_position": np.array(player_pos, dtype=np.float64),
@@ -243,8 +242,10 @@ class DroneGymEnv(gym.Env):
 
         player_position = self.env.get_player_position()
         target_positions = self.env.get_target_positions()
-        time = self.env.get_time()
         info: dict[str, Any] = self.env.get_information()
+        time = 0.0
+        if "time" in info:
+            time = info["time"]
 
         self.renderer.render_step(player_position, target_positions, time, info)
 

@@ -126,8 +126,8 @@ class MatPlotLibRenderer(BaseRenderer):
         if additional_info:
             if "hit_targets" in additional_info:
                 title += f" | Hits: {additional_info['hit_targets']}"
-            if "expired_missiles" in additional_info:
-                title += f" | Expired: {additional_info['expired_missiles']}"
+            if "expired_targets" in additional_info:
+                title += f" | Expired: {additional_info['expired_targets']}"
 
         self.ax.set_title(title)
 
