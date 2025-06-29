@@ -1,7 +1,7 @@
 import drone_environment as de
 import matplotlib.pyplot as plt
 import numpy as np
-from drone_environment.utils import add_random_targets
+from drone_environment.utils import create_diverse_scenario
 from matplotlib.animation import FuncAnimation
 
 # Create environment
@@ -13,7 +13,8 @@ env = de.DoneEnvironmentWrapper(
 
 # Linear motion
 
-add_random_targets(env, num_targets=3)
+# add_random_targets(env, num_targets=3)
+create_diverse_scenario(env, num_targets=2)
 
 # Reset environment and get initial observation
 obs = env.reset((0.0, 0.0, 0.0))
@@ -37,14 +38,17 @@ for i in range(num_steps):
     frame_targets = {}
     direction = None
     for target_id, target_position in current_targets.items():
-        target_pos = (target_position[0], target_position[1], target_position[2])
+        is_dead = target_position[0]
+        if is_dead:
+            continue
+        target_pos = (target_position[1][0], target_position[1][1], target_position[1][2])
         frame_targets[target_id] = target_pos
 
         if direction is None:
             direction = (
-                target_position[0] - player_pos[0],
-                target_position[1] - player_pos[1],
-                target_position[2] - player_pos[2],
+                target_pos[0] - player_pos[0],
+                target_pos[1] - player_pos[1],
+                target_pos[2] - player_pos[2],
             )
 
     if direction is None:

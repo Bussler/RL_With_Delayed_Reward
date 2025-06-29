@@ -12,6 +12,7 @@ pub struct Target {
     pub time: f64,
     max_flight_time: Option<f64>,
     expired: bool,
+    shot_down: bool,
 }
 
 impl Actor for Target {
@@ -40,6 +41,7 @@ impl Target {
             time: 0.0,
             max_flight_time,
             expired: false,
+            shot_down: false,
         }
     }
 
@@ -108,5 +110,13 @@ impl Target {
 
         self.position += self.velocity * dt;
         true
+    }
+
+    pub fn is_dead(&self) -> bool {
+        self.expired || self.shot_down
+    }
+
+    pub fn shoot_down(&mut self) {
+        self.shot_down = true;
     }
 }

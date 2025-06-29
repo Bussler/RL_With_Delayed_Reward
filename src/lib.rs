@@ -1,13 +1,15 @@
 mod actors;
 mod observation_info_utils;
 
-use nalgebra::Vector3;
+use nalgebra::{Vector3, QR};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 
 use actors::{Actor, Player, Target};
 use observation_info_utils::{Information, Observation};
+
+use crate::actors::target;
 
 // Helper function to calculate distance between two Vector3 points
 fn distance(a: Vector3<f64>, b: Vector3<f64>) -> f64 {
@@ -23,7 +25,7 @@ pub struct DroneEnvironment {
     max_time: f64,
     collision_radius: f64,
     original_targets: Vec<Target>,
-    pub expired_missiles_this_step: usize,
+    pub expired_targets_this_step: usize,
     pub hit_targets_this_step: usize,
 }
 
@@ -43,7 +45,7 @@ impl DroneEnvironment {
             max_time,
             collision_radius: collision_radius.unwrap_or(1.0),
             original_targets: Vec::new(),
-            expired_missiles_this_step: 0,
+            expired_targets_this_step: 0,
             hit_targets_this_step: 0,
         }
     }
@@ -79,7 +81,7 @@ impl DroneEnvironment {
 
         self.targets = self.original_targets.clone();
 
-        self.expired_missiles_this_step = 0;
+        self.expired_targets_this_step = 0;
         self.hit_targets_this_step = 0;
 
         // Return observation
@@ -91,30 +93,24 @@ impl DroneEnvironment {
         self.player.move_direction(action, self.dt);
 
         // Update targets
-        let mut expired_target_ids = Vec::new();
+        self.expired_targets_this_step = 0;
+        self.hit_targets_this_step = 0;
         for target in &mut self.targets {
+
+            if target.is_dead(){
+                continue;
+            }
+
             let target_active = target.update(self.dt);
             if !target_active {
-                expired_target_ids.push(target.id);
+                self.expired_targets_this_step += 1;
+                continue;
+            }
+            if distance(self.player.position, target.position) < self.collision_radius {
+                self.hit_targets_this_step += 1;
+                target.shoot_down();
             }
         }
-        self.expired_missiles_this_step = expired_target_ids.len();
-        self.targets
-            .retain(|target| !expired_target_ids.contains(&target.id));
-
-        // Check for collisions and calculate reward
-        self.hit_targets_this_step = 0;
-        // Use retain to keep only targets that are not collided with
-        self.targets.retain(|target| {
-            let dist = distance(self.player.position, target.position);
-
-            if dist < self.collision_radius {
-                self.hit_targets_this_step += 1;
-                false // Remove this target
-            } else {
-                true // Keep this target
-            }
-        });
 
         // Update time
         self.time += self.dt;
@@ -128,6 +124,7 @@ impl DroneEnvironment {
         let mut target_positions = Vec::new();
         let mut target_velocities = Vec::new();
         let mut target_distances = Vec::new();
+        let mut target_death_mask = Vec::new();
 
         for target in &self.targets {
             target_ids.push(target.id);
@@ -136,6 +133,7 @@ impl DroneEnvironment {
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(dist);
+            target_death_mask.push(target.is_dead());
         }
 
         Observation {
@@ -144,6 +142,8 @@ impl DroneEnvironment {
             target_positions,
             target_velocities,
             target_distances,
+            time_left: self.max_time - self.time,
+            target_death_mask,
         }
     }
 
@@ -151,7 +151,7 @@ impl DroneEnvironment {
         Information {
             time: self.time,
             hit_targets: self.hit_targets_this_step,
-            expired_missiles: self.expired_missiles_this_step,
+            expired_targets: self.expired_targets_this_step,
         }
     }
 
@@ -163,8 +163,8 @@ impl DroneEnvironment {
         self.player.speed = speed;
     }
 
-    pub fn get_target_positions(&self) -> Vec<(usize, (f64, f64, f64))> {
-        self.targets.iter().map(|t| (t.id, t.position())).collect()
+    pub fn get_target_positions(&self) -> Vec<(usize, bool, (f64, f64, f64))> {
+        self.targets.iter().map(|t| (t.id, t.is_dead(), t.position())).collect()
     }
 
     pub fn get_time(&self) -> f64 {
@@ -172,7 +172,7 @@ impl DroneEnvironment {
     }
 
     pub fn get_done(&self) -> bool {
-        self.time >= self.max_time || self.targets.is_empty()
+        return self.time >= self.max_time || self.targets.iter().all(|t| t.is_dead());
     }
 }
 
@@ -229,7 +229,7 @@ impl DoneEnvironmentWrapper {
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
         let sim_reward = self.drone_environment.hit_targets_this_step
-            - self.drone_environment.expired_missiles_this_step;
+            - self.drone_environment.expired_targets_this_step;
         let sim_info = self.drone_environment.get_information();
 
         // Convert the result to a PyTuple and calculate the reward, done, info
@@ -271,8 +271,7 @@ impl DoneEnvironmentWrapper {
             let dict = PyDict::new(py);
 
             for target in &self.drone_environment.targets {
-                let position = (target.position.x, target.position.y, target.position.z);
-                dict.set_item(target.id, position)?;
+                dict.set_item(target.id, (target.is_dead(), target.position()))?;
             }
 
             Ok(dict.unbind())

@@ -9,6 +9,8 @@ pub struct Observation {
     pub target_positions: Vec<Vector3<f64>>,
     pub target_velocities: Vec<Vector3<f64>>,
     pub target_distances: Vec<f64>,
+    pub target_death_mask: Vec<bool>,
+    pub time_left: f64,
 }
 
 impl Observation {
@@ -45,6 +47,10 @@ impl Observation {
 
         dict.set_item("target_distances", &self.target_distances)?;
 
+        dict.set_item("target_death_mask", &self.target_death_mask)?;
+        
+        dict.set_item("time_left", self.time_left)?;
+
         Ok(dict.unbind())
     }
 }
@@ -52,7 +58,7 @@ impl Observation {
 pub struct Information {
     pub time: f64,
     pub hit_targets: usize,
-    pub expired_missiles: usize,
+    pub expired_targets: usize,
 }
 
 impl Information {
@@ -61,7 +67,7 @@ impl Information {
 
         dict.set_item("time", self.time)?;
         dict.set_item("hit_targets", &self.hit_targets)?;
-        dict.set_item("expired_missiles", &self.expired_missiles)?;
+        dict.set_item("expired_targets", &self.expired_targets)?;
 
         Ok(dict.unbind())
     }
