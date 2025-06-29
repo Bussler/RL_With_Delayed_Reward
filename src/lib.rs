@@ -231,8 +231,8 @@ impl DoneEnvironmentWrapper {
     // Take a step in the environment. Observations are already returned in numpy format
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
-        let sim_reward = self.drone_environment.hit_targets_this_step
-            - self.drone_environment.expired_targets_this_step;
+        let sim_reward = self.drone_environment.hit_targets_this_step as i32
+            - self.drone_environment.expired_targets_this_step as i32;
         let sim_info = self.drone_environment.get_information();
 
         // Convert the result to a PyTuple and calculate the reward, done, info

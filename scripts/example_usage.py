@@ -1,26 +1,25 @@
 import drone_environment as de
 import matplotlib.pyplot as plt
 import numpy as np
-from drone_environment.utils import create_diverse_scenario
+from drone_environment.utils import add_random_targets
 from matplotlib.animation import FuncAnimation
 
 # Create environment
 env = de.DoneEnvironmentWrapper(
-    player_position=(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=200.0, collision_radius=0.5
+    player_position=(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=100.0, collision_radius=0.5
 )
 
 # Add targets with different trajectories
 
 # Linear motion
 
-# add_random_targets(env, num_targets=3)
-create_diverse_scenario(env, num_targets=2)
+add_random_targets(env, num_targets=3)
 
 # Reset environment and get initial observation
 obs = env.reset((0.0, 0.0, 0.0))
 
 # Number of simulation steps
-num_steps = 200
+num_steps = 100
 
 # Storage for positions - use dictionaries keyed by target_id to handle target removal
 player_positions = []
