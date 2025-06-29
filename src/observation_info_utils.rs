@@ -8,8 +8,8 @@ pub struct Observation {
     pub player_position: Vector3<f64>,
     pub target_ids: Vec<usize>,
     pub target_positions: Vec<Vector3<f64>>,
-    pub target_velocities: Vec<Vector3<f64>>,
-    pub target_distances: Vec<f64>,
+    pub target_velocities: Vec<Vector3<f64>>, // is set to zeros if target is dead
+    pub target_distances: Vec<f64>, // is set to high value if target is dead
     pub target_death_mask: Vec<i8>,
     pub time_left: f64,
 }

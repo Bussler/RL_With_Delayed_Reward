@@ -127,13 +127,15 @@ impl DroneEnvironment {
         let mut target_death_mask = Vec::new();
 
         for target in &self.targets {
+            let target_is_dead = target.is_dead();
+
             target_ids.push(target.id);
             target_positions.push(target.position);
-            target_velocities.push(target.velocity);
+            target_velocities.push(if target_is_dead {Vector3::zeros() } else {target.velocity});
 
             let dist = distance(self.player.position, target.position);
-            target_distances.push(dist);
-            target_death_mask.push(if target.is_dead() { 0 } else { 1 });
+            target_distances.push(if target_is_dead { f64::MAX } else { dist });
+            target_death_mask.push(if target_is_dead { 0 } else { 1 });
         }
 
         Observation {
