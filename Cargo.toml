@@ -11,6 +11,7 @@ crate-type = ["cdylib", "lib"]
 #pyo3 = { version = "0.25.0", features = ["extension-module"] }
 nalgebra = "0.33.2"
 meval = "0.2.0"
+numpy = "0.25.0"
 
 [dependencies.pyo3]
 version = "0.25.0"

@@ -133,7 +133,7 @@ impl DroneEnvironment {
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(dist);
-            target_death_mask.push(target.is_dead());
+            target_death_mask.push(if target.is_dead() { 0 } else { 1 });
         }
 
         Observation {
@@ -221,11 +221,12 @@ impl DoneEnvironmentWrapper {
 
     fn reset(&mut self, player_position: Option<(f64, f64, f64)>) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
-            let obs = self.drone_environment.reset(player_position).to_py_dict(py);
+            let obs = self.drone_environment.reset(player_position).to_numpy_dict(py);
             return obs;
         })
     }
 
+    // Take a step in the environment. Observations are already returned in numpy format
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
         let sim_reward = self.drone_environment.hit_targets_this_step
@@ -234,7 +235,7 @@ impl DoneEnvironmentWrapper {
 
         // Convert the result to a PyTuple and calculate the reward, done, info
         Python::with_gil(|py| {
-            let observation = sim_observation.to_py_dict(py)?.into_py_any(py)?;
+            let observation = sim_observation.to_numpy_dict(py)?.into_py_any(py)?;
             let reward = sim_reward.into_py_any(py)?;
             let done = self.drone_environment.get_done().into_py_any(py)?;
             let info = sim_info.to_py_dict(py)?.into_py_any(py)?;
@@ -244,9 +245,10 @@ impl DoneEnvironmentWrapper {
         })
     }
 
+    //Observations are already returned in numpy format
     fn get_observation(&self) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
-            let obs = self.drone_environment.get_observation().to_py_dict(py);
+            let obs = self.drone_environment.get_observation().to_numpy_dict(py);
             return obs;
         })
     }

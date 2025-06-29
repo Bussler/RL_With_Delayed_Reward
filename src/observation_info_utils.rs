@@ -1,6 +1,7 @@
 use nalgebra::Vector3;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use numpy::{PyArray1, PyArray2};
 
 #[derive(Debug, Clone)]
 pub struct Observation {
@@ -9,47 +10,62 @@ pub struct Observation {
     pub target_positions: Vec<Vector3<f64>>,
     pub target_velocities: Vec<Vector3<f64>>,
     pub target_distances: Vec<f64>,
-    pub target_death_mask: Vec<bool>,
+    pub target_death_mask: Vec<i8>,
     pub time_left: f64,
 }
 
 impl Observation {
-    // Convert to Python dictionary for PyO3 compatibility
-    pub fn to_py_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+    // Convert to Python dictionary with numpy arrays for PyO3 compatibility
+    pub fn to_numpy_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
         let dict = PyDict::new(py);
 
-        // Add player position as tuple
-        let player_pos = (
-            self.player_position.x,
-            self.player_position.y,
-            self.player_position.z,
+        // Add player position as numpy array (shape: [3])
+        let player_pos_array = PyArray1::from_slice(
+            py, 
+            &[self.player_position.x, self.player_position.y, self.player_position.z]
         );
-        dict.set_item("player_position", player_pos)?;
+        dict.set_item("player_position", player_pos_array)?;
 
-        // Add target information
-        dict.set_item("target_ids", &self.target_ids)?;
+        // Add target IDs as numpy array
+        let target_ids_i8: Vec<i8> = self.target_ids.iter().map(|&id| id as i8).collect();
+        let target_ids_array = PyArray1::from_slice(py, &target_ids_i8);
+        dict.set_item("target_ids", target_ids_array)?;
 
-        // Convert Vector3 positions to tuples
-        let target_positions: Vec<(f64, f64, f64)> = self
-            .target_positions
-            .iter()
-            .map(|pos| (pos.x, pos.y, pos.z))
-            .collect();
-        dict.set_item("target_positions", target_positions)?;
+        // Convert Vector3 positions to 2D numpy array (shape: [n_targets, 3])
+        let mut positions_flat = Vec::with_capacity(self.target_positions.len() * 3);
+        for pos in &self.target_positions {
+            positions_flat.extend_from_slice(&[pos.x, pos.y, pos.z]);
+        }
+        let target_positions_array = PyArray2::from_vec2(
+            py,
+            &self.target_positions
+                .iter()
+                .map(|pos| vec![pos.x, pos.y, pos.z])
+                .collect::<Vec<_>>()
+        )?;
+        dict.set_item("target_positions", target_positions_array)?;
 
-        // Convert Vector3 velocities to tuples
-        let target_velocities: Vec<(f64, f64, f64)> = self
-            .target_velocities
-            .iter()
-            .map(|vel| (vel.x, vel.y, vel.z))
-            .collect();
-        dict.set_item("target_velocities", target_velocities)?;
+        // Convert Vector3 velocities to 2D numpy array (shape: [n_targets, 3])
+        let target_velocities_array = PyArray2::from_vec2(
+            py,
+            &self.target_velocities
+                .iter()
+                .map(|vel| vec![vel.x, vel.y, vel.z])
+                .collect::<Vec<_>>()
+        )?;
+        dict.set_item("target_velocities", target_velocities_array)?;
 
-        dict.set_item("target_distances", &self.target_distances)?;
+        // Add target distances as numpy array
+        let target_distances_array = PyArray1::from_slice(py, &self.target_distances);
+        dict.set_item("target_distances", target_distances_array)?;
 
-        dict.set_item("target_death_mask", &self.target_death_mask)?;
+        // Add target death mask as numpy i8 array
+        let target_death_mask_array = PyArray1::from_slice(py, &self.target_death_mask);
+        dict.set_item("target_death_mask", target_death_mask_array)?;
         
-        dict.set_item("time_left", self.time_left)?;
+        // Add time left as scalar
+        let time_left_array = PyArray1::from_slice(py, &vec![self.time_left]);
+        dict.set_item("time_left", time_left_array)?;
 
         Ok(dict.unbind())
     }
@@ -66,8 +82,8 @@ impl Information {
         let dict = PyDict::new(py);
 
         dict.set_item("time", self.time)?;
-        dict.set_item("hit_targets", &self.hit_targets)?;
-        dict.set_item("expired_targets", &self.expired_targets)?;
+        dict.set_item("hit_targets", self.hit_targets as i64)?;
+        dict.set_item("expired_targets", self.expired_targets as i64)?;
 
         Ok(dict.unbind())
     }

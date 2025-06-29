@@ -152,28 +152,28 @@ class DroneGymEnv(gym.Env):
                     shape=(3,),
                     dtype=np.float64,
                 ),
-                # Target IDs: variable length, padding to max_targets
+                # Target IDs: [num_targets]
                 "target_ids": spaces.Box(
                     low=0,
                     high=self.num_targets - 1,
                     shape=(self.num_targets,),
-                    dtype=np.int32,
+                    dtype=np.int8,
                 ),
-                # Target positions: [num_targets, 3] - padded with zeros for inactive targets
+                # Target positions: [num_targets, 3]
                 "target_positions": spaces.Box(
                     low=-self.arena_size,
                     high=self.arena_size,
                     shape=(self.num_targets, 3),
                     dtype=np.float64,
                 ),
-                # Target velocities: [num_targets, 3] - padded with zeros for inactive targets
+                # Target velocities: [num_targets, 3]
                 "target_velocities": spaces.Box(
                     low=-self.max_target_speed,
                     high=self.max_target_speed,
                     shape=(self.num_targets, 3),
                     dtype=np.float64,
                 ),
-                # Target distances: [num_targets] - padded with large values for inactive targets
+                # Target distances: [num_targets]
                 "target_distances": spaces.Box(
                     low=0.0,
                     high=self.arena_size * 2,  # Maximum possible distance in arena
@@ -181,7 +181,7 @@ class DroneGymEnv(gym.Env):
                     dtype=np.float64,
                 ),
                 # Target mask (1 if target exists, 0 if not): [num_targets]
-                "target_mask": spaces.Box(low=0, high=1, shape=(self.num_targets,), dtype=np.int8),
+                "target_death_mask": spaces.Box(low=0, high=1, shape=(self.num_targets,), dtype=np.int8),
                 # Time left: scalar
                 "time_left": spaces.Box(low=0, high=self.max_time, shape=(1,), dtype=np.float64),
             }
@@ -190,50 +190,18 @@ class DroneGymEnv(gym.Env):
     def _process_observation(self, observation_raw: dict) -> dict[str, np.ndarray]:
         """Process raw observation from Rust into gym observation format.
 
+        No need for processing for now, just return the raw observation.
+        The rust code is already returning the correct format in numpy.
+
         Args:
             observation_raw: Raw observation dictionary from Rust simulation
 
         Returns:
             Processed observation matching the observation space
         """
-        # Extract data from raw observation
-        player_pos = observation_raw.get("player_position", (0.0, 0.0, 0.0))
-        target_ids = observation_raw.get("target_ids", [])
-        target_positions = observation_raw.get("target_positions", [])
-        target_velocities = observation_raw.get("target_velocities", [])
-        target_distances = observation_raw.get("target_distances", [])
-        time_left = observation_raw.get("time_left", 0.0)
+        # No need for processing for now, just return the raw observation.
 
-        # Create padded arrays
-        num_active_targets = len(target_ids)
-
-        # Initialize arrays with padding
-        padded_target_ids = np.zeros(self.num_targets, dtype=np.int32)
-        padded_target_positions = np.zeros((self.num_targets, 3), dtype=np.float64)
-        padded_target_velocities = np.zeros((self.num_targets, 3), dtype=np.float64)
-        padded_target_distances = np.full(self.num_targets, self.arena_size * 2, dtype=np.float64)
-        target_mask = np.zeros(self.num_targets, dtype=np.int8)
-
-        # Fill in active target data
-        for i in range(min(num_active_targets, self.num_targets)):
-            padded_target_ids[i] = target_ids[i]
-            padded_target_positions[i] = np.array(target_positions[i])
-            padded_target_velocities[i] = np.array(target_velocities[i])
-            padded_target_distances[i] = target_distances[i]
-            target_mask[i] = 1
-
-        # Calculate time left
-        time_left = np.array([time_left], dtype=np.float64)
-
-        return {
-            "player_position": np.array(player_pos, dtype=np.float64),
-            "target_ids": padded_target_ids,
-            "target_positions": padded_target_positions,
-            "target_velocities": padded_target_velocities,
-            "target_distances": padded_target_distances,
-            "target_mask": target_mask,
-            "time_left": time_left,
-        }
+        return observation_raw
 
     def render(self) -> None:
         """Render the environment and cache the frames for later GIF creation."""
