@@ -1,0 +1,44 @@
+environment:
+  collision_radius: 0.5
+  dt: 0.1
+  max_time: 100.0
+player:
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+  speed: 8.0
+targets:
+- id: 1
+  max_flight_time: 18.8
+  position:
+  - -23.6
+  - -22.7
+  - 4.8
+  trajectory_fn: -3.1 + 6.6*cos(2.0*t), -0.9 + 6.6*sin(2.0*t), 7.2
+  velocity:
+  - 0.0
+  - 0.0
+  - 0.0
+- id: 2
+  max_flight_time: null
+  position:
+  - -4.9
+  - -13.7
+  - 3.5
+  trajectory_fn: null
+  velocity:
+  - 0.6
+  - -3.1
+  - -0.5
+- id: 3
+  max_flight_time: null
+  position:
+  - 23.2
+  - -24.7
+  - 5.7
+  trajectory_fn: null
+  velocity:
+  - 2.7
+  - 1.6
+  - -0.9

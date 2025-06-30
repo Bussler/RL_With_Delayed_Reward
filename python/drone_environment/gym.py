@@ -4,7 +4,7 @@ import gymnasium as gym
 import numpy as np
 from drone_environment._lib import DroneEnvironmentWrapper
 from drone_environment.rendering import Renderer, RenderMode, get_renderer
-from drone_environment.utils import add_random_targets, read_yml
+from drone_environment.utils import read_yml
 from gymnasium import spaces
 
 
@@ -17,13 +17,7 @@ class DroneGymEnv(gym.Env):
 
     def __init__(
         self,
-        dt: float = 0.1,
-        max_time: float = 100.0,
-        player_speed: float = 8.0,
-        collision_radius: float = 0.5,
-        num_targets: int = 5,
-        max_target_speed: float = 6.0,
-        max_flight_time_range: tuple[float, float] = (5.0, 15.0),
+        drone_env_config: str = "configs/drone_env/default_config.yaml",
         arena_size: float = 50.0,
         renderer: Renderer | None = None,
         render_mode: RenderMode | None = None,
@@ -48,13 +42,6 @@ class DroneGymEnv(gym.Env):
             render_mode: Rendering mode for visualization. Options include "human" for
                 interactive display or "rgb_array" for programmatic access to frames.
         """
-        self.dt = dt
-        self.max_time = max_time
-        self.player_speed = player_speed
-        self.collision_radius = collision_radius
-        self.num_targets = num_targets
-        self.max_target_speed = max_target_speed
-        self.max_flight_time_range = max_flight_time_range
         self.arena_size = arena_size
 
         self.render_mode = render_mode
@@ -63,17 +50,9 @@ class DroneGymEnv(gym.Env):
         )
 
         # Create the Rust environment using DroneEnvironmentWrapper
-        self.env = DroneEnvironmentWrapper(
-            player_position=(0.0, 0.0, 0.0),
-            player_speed=self.player_speed,
-            dt=self.dt,
-            max_time=self.max_time,
-            collision_radius=self.collision_radius,
-        )
-
-        add_random_targets(
-            self.env, self.num_targets, arena_size, max_target_speed, 0.6, max_flight_time_range
-        )
+        self.env = DroneEnvironmentWrapper.from_yaml_config(drone_env_config)
+        self.max_time = self.env.get_time()
+        self.num_targets = len(self.env.get_target_positions())
 
         self.action_space = self._create_action_space()
         self.observation_space = self._create_observation_space()
@@ -168,8 +147,8 @@ class DroneGymEnv(gym.Env):
                 ),
                 # Target velocities: [num_targets, 3]
                 "target_velocities": spaces.Box(
-                    low=-self.max_target_speed,
-                    high=self.max_target_speed,
+                    low=-100,
+                    high=100,
                     shape=(self.num_targets, 3),
                     dtype=np.float64,
                 ),

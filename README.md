@@ -56,6 +56,10 @@ You can also set the following `setting.json` file in the local `.vscode/` direc
 }
 ```
 
+## Example Usage
+
+- Generate a scenario with the script in `./scripts/generate_scenario.py` or use the default one in `./configs/drone_env/default_config.yaml`
+- Run and render the simulation with the script in `./scripts/example_usage.py`
 
 ## Train an agent on the environment
 

@@ -6,12 +6,6 @@ from matplotlib.animation import FuncAnimation
 # Create environment
 env = de.DroneEnvironmentWrapper.from_yaml_config("configs/drone_env/default_config.yaml")
 
-# Add targets with different trajectories
-
-# Linear motion
-
-# add_random_targets(env, num_targets=3)
-
 # Reset environment and get initial observation
 obs = env.reset((0.0, 0.0, 0.0))
 
