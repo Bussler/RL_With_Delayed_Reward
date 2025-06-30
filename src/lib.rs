@@ -1,15 +1,15 @@
 mod actors;
+mod config;
 mod observation_info_utils;
 
-use nalgebra::{Vector3, QR};
+use nalgebra::Vector3;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 
 use actors::{Actor, Player, Target};
+pub use config::DroneEnvironmentConfig;
 use observation_info_utils::{Information, Observation};
-
-use crate::actors::target;
 
 // Helper function to calculate distance between two Vector3 points
 fn distance(a: Vector3<f64>, b: Vector3<f64>) -> f64 {
@@ -48,6 +48,38 @@ impl DroneEnvironment {
             expired_targets_this_step: 0,
             hit_targets_this_step: 0,
         }
+    }
+
+    /// Create DroneEnvironment from YAML configuration file
+    pub fn from_yaml_config<P: AsRef<std::path::Path>>(
+        config_path: P,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let config = DroneEnvironmentConfig::from_yaml_file(config_path)?;
+        Ok(Self::from_config(config))
+    }
+
+    /// Create DroneEnvironment from configuration struct
+    pub fn from_config(config: DroneEnvironmentConfig) -> Self {
+        let mut env = DroneEnvironment::new(
+            config.player.position,
+            config.player.speed,
+            config.environment.dt,
+            config.environment.max_time,
+            config.environment.collision_radius,
+        );
+
+        // Add all targets from config
+        for target_config in config.targets {
+            env.add_target(
+                target_config.id,
+                target_config.position,
+                target_config.velocity,
+                target_config.trajectory_fn,
+                target_config.max_flight_time,
+            );
+        }
+
+        env
     }
 
     pub fn add_target(
@@ -96,8 +128,7 @@ impl DroneEnvironment {
         self.expired_targets_this_step = 0;
         self.hit_targets_this_step = 0;
         for target in &mut self.targets {
-
-            if target.is_dead(){
+            if target.is_dead() {
                 continue;
             }
 
@@ -131,7 +162,11 @@ impl DroneEnvironment {
 
             target_ids.push(target.id);
             target_positions.push(target.position);
-            target_velocities.push(if target_is_dead {Vector3::zeros() } else {target.velocity});
+            target_velocities.push(if target_is_dead {
+                Vector3::zeros()
+            } else {
+                target.velocity
+            });
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(if target_is_dead { f64::MAX } else { dist });
@@ -166,7 +201,10 @@ impl DroneEnvironment {
     }
 
     pub fn get_target_positions(&self) -> Vec<(usize, bool, (f64, f64, f64))> {
-        self.targets.iter().map(|t| (t.id, t.is_dead(), t.position())).collect()
+        self.targets
+            .iter()
+            .map(|t| (t.id, t.is_dead(), t.position()))
+            .collect()
     }
 
     pub fn get_time(&self) -> f64 {
@@ -179,12 +217,12 @@ impl DroneEnvironment {
 }
 
 #[pyclass]
-struct DoneEnvironmentWrapper {
+struct DroneEnvironmentWrapper {
     drone_environment: DroneEnvironment,
 }
 
 #[pymethods]
-impl DoneEnvironmentWrapper {
+impl DroneEnvironmentWrapper {
     #[new]
     fn new(
         player_position: (f64, f64, f64),
@@ -193,7 +231,7 @@ impl DoneEnvironmentWrapper {
         max_time: f64,
         collision_radius: Option<f64>,
     ) -> Self {
-        DoneEnvironmentWrapper {
+        DroneEnvironmentWrapper {
             drone_environment: DroneEnvironment::new(
                 player_position,
                 player_speed,
@@ -201,6 +239,20 @@ impl DoneEnvironmentWrapper {
                 max_time,
                 collision_radius,
             ),
+        }
+    }
+
+    #[classmethod]
+    fn from_yaml_config(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        config_path: String,
+    ) -> PyResult<Self> {
+        match DroneEnvironment::from_yaml_config(config_path) {
+            Ok(drone_environment) => Ok(DroneEnvironmentWrapper { drone_environment }),
+            Err(e) => Err(pyo3::exceptions::PyIOError::new_err(format!(
+                "Failed to load config: {}",
+                e
+            ))),
         }
     }
 
@@ -223,12 +275,15 @@ impl DoneEnvironmentWrapper {
 
     fn reset(&mut self, player_position: Option<(f64, f64, f64)>) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
-            let obs = self.drone_environment.reset(player_position).to_numpy_dict(py);
+            let obs = self
+                .drone_environment
+                .reset(player_position)
+                .to_numpy_dict(py);
             return obs;
         })
     }
 
-    // Take a step in the environment. Observations are already returned in numpy format
+    /// Take a step in the environment. Observations are already returned in numpy format
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
         let sim_reward = self.drone_environment.hit_targets_this_step as i32
@@ -247,7 +302,7 @@ impl DoneEnvironmentWrapper {
         })
     }
 
-    //Observations are already returned in numpy format
+    /// Observations are already returned in numpy format
     fn get_observation(&self) -> PyResult<Py<PyDict>> {
         Python::with_gil(|py| {
             let obs = self.drone_environment.get_observation().to_numpy_dict(py);
@@ -295,6 +350,6 @@ impl DoneEnvironmentWrapper {
 #[pymodule]
 #[pyo3(name = "_lib")]
 fn drone_environment(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<DoneEnvironmentWrapper>()?;
+    m.add_class::<DroneEnvironmentWrapper>()?;
     Ok(())
 }

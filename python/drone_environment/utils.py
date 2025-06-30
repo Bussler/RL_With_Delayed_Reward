@@ -3,7 +3,7 @@
 import random
 
 import yaml
-from drone_environment._lib import DoneEnvironmentWrapper
+from drone_environment._lib import DroneEnvironmentWrapper
 
 
 def read_yml(f_path: str) -> dict:
@@ -132,7 +132,7 @@ def _generate_random_trajectory() -> str:
 
 
 def add_random_targets(
-    env: DoneEnvironmentWrapper,
+    env: DroneEnvironmentWrapper,
     num_targets: int,
     arena_size: float = 20.0,
     max_speed: float = 6.0,
@@ -167,7 +167,7 @@ def add_random_targets(
 
 # Example usage function
 def create_diverse_scenario(
-    env: DoneEnvironmentWrapper,
+    env: DroneEnvironmentWrapper,
     num_targets: int,
     arena_size: float = 20.0,
     max_speed: float = 6.0,

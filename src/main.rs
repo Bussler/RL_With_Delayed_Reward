@@ -1,8 +1,13 @@
 use drone_environment::DroneEnvironment;
+use drone_environment::DroneEnvironmentConfig;
 
 fn main() {
     println!("Initializing Drone Environment...");
-    let mut env = DroneEnvironment::new((0.0, 0.0, 0.0), 10.0, 0.1, 10.0, Some(1.0));
+    // let mut env = DroneEnvironment::new((0.0, 0.0, 0.0), 10.0, 0.1, 10.0, Some(1.0));
+
+    let config =
+        DroneEnvironmentConfig::from_yaml_file("configs/drone_env/default_config.yaml").unwrap();
+    let mut env = DroneEnvironment::from_config(config);
 
     env.add_target(0, (10.0, 0.0, 0.0), (0.0, 0.0, 0.0), None, None);
 

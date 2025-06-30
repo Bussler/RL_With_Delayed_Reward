@@ -1,19 +1,16 @@
 import drone_environment as de
 import matplotlib.pyplot as plt
 import numpy as np
-from drone_environment.utils import add_random_targets
 from matplotlib.animation import FuncAnimation
 
 # Create environment
-env = de.DoneEnvironmentWrapper(
-    player_position=(0.0, 0.0, 0.0), player_speed=8.0, dt=0.1, max_time=100.0, collision_radius=0.5
-)
+env = de.DroneEnvironmentWrapper.from_yaml_config("configs/drone_env/default_config.yaml")
 
 # Add targets with different trajectories
 
 # Linear motion
 
-add_random_targets(env, num_targets=3)
+# add_random_targets(env, num_targets=3)
 
 # Reset environment and get initial observation
 obs = env.reset((0.0, 0.0, 0.0))

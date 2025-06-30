@@ -12,6 +12,8 @@ crate-type = ["cdylib", "lib"]
 nalgebra = "0.33.2"
 meval = "0.2.0"
 numpy = "0.25.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_yaml = "0.9.34"
 
 [dependencies.pyo3]
 version = "0.25.0"

@@ -2,14 +2,14 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from drone_environment._lib import DoneEnvironmentWrapper
+from drone_environment._lib import DroneEnvironmentWrapper
 from drone_environment.rendering import Renderer, RenderMode, get_renderer
 from drone_environment.utils import add_random_targets, read_yml
 from gymnasium import spaces
 
 
 class DroneGymEnv(gym.Env):
-    """Gymnasium wrapper for the Rust DroneEnvironment using DoneEnvironmentWrapper.
+    """Gymnasium wrapper for the Rust DroneEnvironment using DroneEnvironmentWrapper.
 
     This environment simulates a drone defense scenario where a player
     needs to intercept targets (enemy drones) by moving within collision range.
@@ -62,8 +62,8 @@ class DroneGymEnv(gym.Env):
             None if renderer is None else get_renderer(renderer, self.render_mode, self.arena_size)
         )
 
-        # Create the Rust environment using DoneEnvironmentWrapper
-        self.env = DoneEnvironmentWrapper(
+        # Create the Rust environment using DroneEnvironmentWrapper
+        self.env = DroneEnvironmentWrapper(
             player_position=(0.0, 0.0, 0.0),
             player_speed=self.player_speed,
             dt=self.dt,

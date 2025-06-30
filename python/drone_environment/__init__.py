@@ -1,4 +1,4 @@
 from drone_environment._lib import (
-    DoneEnvironmentWrapper,
+    DroneEnvironmentWrapper,
 )
 from drone_environment.gym import DroneGymEnv

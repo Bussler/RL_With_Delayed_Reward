@@ -1,7 +1,7 @@
 use nalgebra::Vector3;
+use numpy::{PyArray1, PyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use numpy::{PyArray1, PyArray2};
 
 #[derive(Debug, Clone)]
 pub struct Observation {
@@ -9,7 +9,7 @@ pub struct Observation {
     pub target_ids: Vec<usize>,
     pub target_positions: Vec<Vector3<f64>>,
     pub target_velocities: Vec<Vector3<f64>>, // is set to zeros if target is dead
-    pub target_distances: Vec<f64>, // is set to high value if target is dead
+    pub target_distances: Vec<f64>,           // is set to high value if target is dead
     pub target_death_mask: Vec<i8>,
     pub time_left: f64,
 }
@@ -21,8 +21,12 @@ impl Observation {
 
         // Add player position as numpy array (shape: [3])
         let player_pos_array = PyArray1::from_slice(
-            py, 
-            &[self.player_position.x, self.player_position.y, self.player_position.z]
+            py,
+            &[
+                self.player_position.x,
+                self.player_position.y,
+                self.player_position.z,
+            ],
         );
         dict.set_item("player_position", player_pos_array)?;
 
@@ -38,20 +42,22 @@ impl Observation {
         }
         let target_positions_array = PyArray2::from_vec2(
             py,
-            &self.target_positions
+            &self
+                .target_positions
                 .iter()
                 .map(|pos| vec![pos.x, pos.y, pos.z])
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         )?;
         dict.set_item("target_positions", target_positions_array)?;
 
         // Convert Vector3 velocities to 2D numpy array (shape: [n_targets, 3])
         let target_velocities_array = PyArray2::from_vec2(
             py,
-            &self.target_velocities
+            &self
+                .target_velocities
                 .iter()
                 .map(|vel| vec![vel.x, vel.y, vel.z])
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         )?;
         dict.set_item("target_velocities", target_velocities_array)?;
 
@@ -62,7 +68,7 @@ impl Observation {
         // Add target death mask as numpy i8 array
         let target_death_mask_array = PyArray1::from_slice(py, &self.target_death_mask);
         dict.set_item("target_death_mask", target_death_mask_array)?;
-        
+
         // Add time left as scalar
         let time_left_array = PyArray1::from_slice(py, &vec![self.time_left]);
         dict.set_item("time_left", time_left_array)?;
