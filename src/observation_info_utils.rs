@@ -36,10 +36,6 @@ impl Observation {
         dict.set_item("target_ids", target_ids_array)?;
 
         // Convert Vector3 positions to 2D numpy array (shape: [n_targets, 3])
-        let mut positions_flat = Vec::with_capacity(self.target_positions.len() * 3);
-        for pos in &self.target_positions {
-            positions_flat.extend_from_slice(&[pos.x, pos.y, pos.z]);
-        }
         let target_positions_array = PyArray2::from_vec2(
             py,
             &self
