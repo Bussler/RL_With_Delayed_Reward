@@ -2,10 +2,11 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
+from gymnasium import spaces
+
 from drone_environment._lib import DroneEnvironmentWrapper
 from drone_environment.rendering import Renderer, RenderMode, get_renderer
 from drone_environment.utils import read_yml
-from gymnasium import spaces
 
 
 class DroneGymEnv(gym.Env):
@@ -126,8 +127,8 @@ class DroneGymEnv(gym.Env):
             {
                 # Player position: [3] (x, y, z)
                 "player_position": spaces.Box(
-                    low=-self.arena_size,
-                    high=self.arena_size,
+                    low=-self.arena_size * 3,
+                    high=self.arena_size * 3,
                     shape=(3,),
                     dtype=np.float64,
                 ),
@@ -140,8 +141,8 @@ class DroneGymEnv(gym.Env):
                 ),
                 # Target positions: [num_targets, 3]
                 "target_positions": spaces.Box(
-                    low=-self.arena_size,
-                    high=self.arena_size,
+                    low=-self.arena_size * 3,
+                    high=self.arena_size * 3,
                     shape=(self.num_targets, 3),
                     dtype=np.float64,
                 ),
@@ -155,7 +156,7 @@ class DroneGymEnv(gym.Env):
                 # Target distances: [num_targets]
                 "target_distances": spaces.Box(
                     low=0.0,
-                    high=self.arena_size * 2,  # Maximum possible distance in arena
+                    high=self.arena_size * 3,  # Maximum possible distance in arena
                     shape=(self.num_targets,),
                     dtype=np.float64,
                 ),
@@ -222,7 +223,7 @@ def calculate_flattened_obs_space_size(obs_space: spaces.Space) -> int:
 
 
 if __name__ == "__main__":
-    test_env = DroneGymEnv()
+    test_env = DroneGymEnv(renderer="matplotlib", render_mode="rgb_array")
 
     print(f"Observation space: {calculate_flattened_obs_space_size(test_env.observation_space)}")
     print(f"Action space: {test_env.action_space}")
@@ -231,9 +232,11 @@ if __name__ == "__main__":
     obs, info = test_env.reset()
 
     print(f"Sample action: {action}")
-    print(f"Initial observation keys: {obs.keys()}")
-    print(f"Player position: {obs['player_position']}")
-    print(f"Active targets: {np.sum(obs['target_mask'])}")
+    print(f"Active targets: {np.sum(obs['target_death_mask'])}")  # count amount of ones
 
-    observation, reward, done, truncated, info = test_env.step(action)
-    print(f"Step reward: {reward}, done: {done}")
+    for i in range(200):
+        action = test_env.action_space.sample()
+        observation, reward, done, truncated, info = test_env.step(action)
+        test_env.render()
+        print(f"Step {i} reward: {reward}, done: {done}")
+    test_env.close()
