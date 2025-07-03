@@ -51,7 +51,7 @@ def generate_random_target(
             _round_to_one_decimal(random.uniform(-max_speed, max_speed)),
             _round_to_one_decimal(random.uniform(-max_speed / 2, max_speed / 2)),  # Slower vertical movement
         )
-        max_flight_time = None  # Linear targets don't need flight time limit
+        max_flight_time = _round_to_one_decimal(random.uniform(*max_flight_time_range))
 
     return {
         "target_id": target_id,
@@ -199,7 +199,7 @@ def main() -> None:
         arena_size=25.0,
         max_speed=5.0,
         trajectory_probability=0.7,
-        max_flight_time_range=(10.0, 30.0),
+        max_flight_time_range=(10.0, 60.0),
         output_file="configs/drone_env/generated_config.yaml",
     )
 

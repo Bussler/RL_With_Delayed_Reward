@@ -53,6 +53,7 @@ class DroneGymEnv(gym.Env):
         # Create the Rust environment using DroneEnvironmentWrapper
         self.env = DroneEnvironmentWrapper.from_yaml_config(drone_env_config)
         self.max_time = self.env.get_time()
+        self.max_flight_time = 1000.0  # Need to get this from config
         self.num_targets = len(self.env.get_target_positions())
 
         self.action_space = self._create_action_space()
@@ -157,6 +158,12 @@ class DroneGymEnv(gym.Env):
                 "target_distances": spaces.Box(
                     low=0.0,
                     high=self.arena_size * 3,  # Maximum possible distance in arena
+                    shape=(self.num_targets,),
+                    dtype=np.float64,
+                ),
+                "target_time_remaining": spaces.Box(
+                    low=0.0,
+                    high=self.max_flight_time,
                     shape=(self.num_targets,),
                     dtype=np.float64,
                 ),

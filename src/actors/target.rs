@@ -116,7 +116,19 @@ impl Target {
         self.expired || self.shot_down
     }
 
+    pub fn remaining_time(&self) -> Option<f64> {
+        if let Some(max_time) = self.max_flight_time {
+            Some(max_time - self.time)
+        } else {
+            None
+        }
+    }
+
     pub fn shoot_down(&mut self) {
         self.shot_down = true;
+    }
+
+    pub fn is_shot_down(&self) -> bool {
+        self.shot_down
     }
 }

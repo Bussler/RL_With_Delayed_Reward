@@ -10,7 +10,7 @@ player:
   speed: 8.0
 targets:
 - id: 1
-  max_flight_time: 15.4
+  max_flight_time: 15.0
   position:
   - -22.2
   - -2.6
@@ -21,7 +21,7 @@ targets:
   - 0.0
   - 0.0
 - id: 2
-  max_flight_time: 19.8
+  max_flight_time: 20.0
   position:
   - 4.3
   - 1.7
@@ -32,7 +32,7 @@ targets:
   - 0.0
   - 0.0
 - id: 3
-  max_flight_time: null
+  max_flight_time: 20.0
   position:
   - -15.2
   - 10.1

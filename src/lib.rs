@@ -25,8 +25,9 @@ pub struct DroneEnvironment {
     max_time: f64,
     collision_radius: f64,
     original_targets: Vec<Target>,
-    pub expired_targets_this_step: usize,
-    pub hit_targets_this_step: usize,
+    expired_targets_this_step: usize,
+    hit_targets_this_step: usize,
+    hit_target_time_bonuses: Vec<f64>,
 }
 
 impl DroneEnvironment {
@@ -47,6 +48,7 @@ impl DroneEnvironment {
             original_targets: Vec::new(),
             expired_targets_this_step: 0,
             hit_targets_this_step: 0,
+            hit_target_time_bonuses: Vec::new(),
         }
     }
 
@@ -115,6 +117,7 @@ impl DroneEnvironment {
 
         self.expired_targets_this_step = 0;
         self.hit_targets_this_step = 0;
+        self.hit_target_time_bonuses.clear();
 
         // Return observation
         self.get_observation()
@@ -127,6 +130,8 @@ impl DroneEnvironment {
         // Update targets
         self.expired_targets_this_step = 0;
         self.hit_targets_this_step = 0;
+        self.hit_target_time_bonuses.clear();
+        
         for target in &mut self.targets {
             if target.is_dead() {
                 continue;
@@ -139,6 +144,10 @@ impl DroneEnvironment {
             }
             if distance(self.player.position, target.position) < self.collision_radius {
                 self.hit_targets_this_step += 1;
+                // Store time bonus for hit targets for reward
+                if let Some(remaining_time) = target.remaining_time() {
+                    self.hit_target_time_bonuses.push(remaining_time);
+                }
                 target.shoot_down();
             }
         }
@@ -151,16 +160,15 @@ impl DroneEnvironment {
     }
 
     pub fn get_observation(&self) -> Observation {
-        let mut target_ids = Vec::new();
         let mut target_positions = Vec::new();
         let mut target_velocities = Vec::new();
         let mut target_distances = Vec::new();
+        let mut target_time_remaining = Vec::new();
         let mut target_death_mask = Vec::new();
 
         for target in &self.targets {
             let target_is_dead = target.is_dead();
 
-            target_ids.push(target.id);
             target_positions.push(target.position);
             target_velocities.push(if target_is_dead {
                 Vector3::zeros()
@@ -170,15 +178,23 @@ impl DroneEnvironment {
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(if target_is_dead { f64::MAX } else { dist });
+            target_time_remaining.push(if target_is_dead {
+                f64::MAX
+            } else {
+                match target.remaining_time() {
+                    Some(t) => t,
+                    None => f64::MAX,
+                }
+            });
             target_death_mask.push(if target_is_dead { 0 } else { 1 });
         }
 
         Observation {
             player_position: self.player.position,
-            target_ids,
             target_positions,
             target_velocities,
             target_distances,
+            target_time_remaining,
             time_left: self.max_time - self.time,
             target_death_mask,
         }
@@ -190,6 +206,65 @@ impl DroneEnvironment {
             hit_targets: self.hit_targets_this_step,
             expired_targets: self.expired_targets_this_step,
         }
+    }
+
+    fn calculate_reward(&self) -> f64 {
+        let mut reward = 0.0;
+        
+        // Base reward for hitting targets
+        let hit_reward = self.hit_targets_this_step as f64 * 100.0;
+        reward += hit_reward;
+        
+        // Time bonus for hitting targets early (normalized remaining time)
+        let time_bonus: f64 = self.hit_target_time_bonuses.iter()
+            .map(|&remaining_time| {
+                // Bonus scales with remaining time (0-50 points)
+                (remaining_time / self.max_time) * 50.0
+            })
+            .sum();
+        reward += time_bonus;
+        
+        // Heavy penalty for expired targets
+        let expiry_penalty = self.expired_targets_this_step as f64 * -150.0;
+        reward += expiry_penalty;
+        
+        // Urgency bonus: reward for being close to targets about to expire
+        let urgency_bonus = self.calculate_urgency_bonus();
+        reward += urgency_bonus;
+        
+        // Completion bonus if all targets are eliminated by drone
+        if self.targets.iter().all(|t| t.is_shot_down()) {
+            let time_efficiency = (self.max_time - self.time) / self.max_time;
+            reward += 200.0 * time_efficiency; // Up to 200 bonus points
+        }
+        
+        // Small time penalty to encourage speed
+        reward -= 0.1;
+        
+        reward
+    }
+
+    fn calculate_urgency_bonus(&self) -> f64 {
+        let mut urgency_bonus = 0.0;
+        
+        for target in &self.targets {
+            if target.is_dead() {
+                continue;
+            }
+            
+            if let Some(remaining_time) = target.remaining_time() {
+                let distance_to_target = distance(self.player.position, target.position);
+                let urgency_factor = 1.0 - (remaining_time / self.max_time);
+                
+                // Bonus for being close to urgent targets
+                if urgency_factor > 0.7 { // Target has < 30% time remaining
+                    let proximity_bonus = (10.0 / (1.0 + distance_to_target)) * urgency_factor;
+                    urgency_bonus += proximity_bonus;
+                }
+            }
+        }
+        
+        urgency_bonus
     }
 
     pub fn get_player_position(&self) -> (f64, f64, f64) {
@@ -286,8 +361,7 @@ impl DroneEnvironmentWrapper {
     /// Take a step in the environment. Observations are already returned in numpy format
     fn step(&mut self, action: (f64, f64, f64)) -> PyResult<Py<PyTuple>> {
         let sim_observation = self.drone_environment.step(action);
-        let sim_reward = self.drone_environment.hit_targets_this_step as i32
-            - self.drone_environment.expired_targets_this_step as i32;
+        let sim_reward = self.drone_environment.calculate_reward();
         let sim_info = self.drone_environment.get_information();
 
         // Convert the result to a PyTuple and calculate the reward, done, info
