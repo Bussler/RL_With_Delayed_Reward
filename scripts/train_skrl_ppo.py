@@ -202,12 +202,13 @@ if MODEL_PATH:
         while not done and step < EVAL_LENGTH:
             action = agent.act(observation, timestep=step, timesteps=1)[0]
             next_observation, reward, terminated, truncated, info = env.step(action)
+            reward = reward.item() if hasattr(reward, "item") else reward
 
             if step % EVAL_RENDER_INTERVAL == 0:
                 env.render()
                 print(f"Step: {step}, Action: {action}, Reward: {reward:.4f}, Total: {total_reward:.4f}")
 
-            total_reward += reward.item() if hasattr(reward, "item") else reward
+            total_reward += reward
             observation = next_observation
             done = terminated or truncated
             step += 1
