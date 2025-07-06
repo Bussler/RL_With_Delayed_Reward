@@ -17,7 +17,7 @@ else:
 
     # Create the PPO agent
     model = PPO(
-        "MultiInputPolicy",  # "MlpPolicy",
+        "MultiInputPolicy",  # "MlpPolicy", "MultiInputPolicy"
         env,
         verbose=1,
         learning_rate=0.0003,
@@ -31,8 +31,22 @@ else:
         device="cpu",
     )
 
+    # Monitor rewards during training
+    # from stable_baselines3.common.callbacks import BaseCallback
+
+    # class DebugCallback(BaseCallback):
+    #     def _on_step(self) -> bool:
+    #         if hasattr(self.locals, "rewards"):
+    #             rewards = self.locals["rewards"]
+    #             if np.isnan(rewards).any():
+    #                 print(f"NaN reward detected at step {self.num_timesteps}")
+    #         print(self.locals["n_steps"])
+    #         if self.locals["n_steps"] == 150:
+    #             print("Look at this")
+    #         return True
+
     # Train the agent
-    model.learn(total_timesteps=250000)
+    model.learn(total_timesteps=250000)  # callback=DebugCallback()
 
     # Save the trained model
     model.save("drone_ppo_model")

@@ -177,9 +177,9 @@ impl DroneEnvironment {
             });
 
             let dist = distance(self.player.position, target.position);
-            target_distances.push(if target_is_dead { f64::MAX } else { dist });
+            target_distances.push(if target_is_dead { 1000.0 } else { dist });
             target_time_remaining.push(if target_is_dead {
-                f64::MAX
+                1000.0 // f64::MAX
             } else {
                 match target.remaining_time() {
                     Some(t) => t,
