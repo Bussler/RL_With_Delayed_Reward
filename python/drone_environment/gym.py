@@ -134,13 +134,6 @@ class DroneGymEnv(gym.Env):
                     shape=(3,),
                     dtype=np.float64,
                 ),
-                # Target IDs: [num_targets]
-                "target_ids": spaces.Box(
-                    low=0,
-                    high=self.num_targets - 1,
-                    shape=(self.num_targets,),
-                    dtype=np.int8,
-                ),
                 # Target positions: [num_targets, 3]
                 "target_positions": spaces.Box(
                     low=-self.arena_size * 3,

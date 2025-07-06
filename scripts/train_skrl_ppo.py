@@ -1,7 +1,6 @@
 import os
 
 import gymnasium as gym
-import numpy as np
 import torch
 
 # Import our environment
@@ -29,37 +28,6 @@ orig_env = DroneGymEnv(renderer="matplotlib", render_mode="rgb_array")
 
 # Wrap the environment for skrl
 env = wrap_env(orig_env)
-
-
-def flatten_observation(obs_dict: dict) -> np.ndarray:
-    """Flatten the dictionary observation into a single tensor."""
-    flattened_parts = []
-
-    # Player position (3,)
-    flattened_parts.append(obs_dict["player_position"])
-
-    # Target IDs (num_targets,) - convert to float
-    flattened_parts.append(obs_dict["target_ids"].astype(np.float32))
-
-    # Target positions (num_targets, 3) -> flatten to (num_targets * 3,)
-    flattened_parts.append(obs_dict["target_positions"].flatten())
-
-    # Target velocities (num_targets, 3) -> flatten to (num_targets * 3,)
-    flattened_parts.append(obs_dict["target_velocities"].flatten())
-
-    # Target distances (num_targets,)
-    flattened_parts.append(obs_dict["target_distances"])
-
-    # Target time remaining (num_targets,)
-    flattened_parts.append(obs_dict["target_time_remaining"])
-
-    # Target death mask (num_targets,) - convert to float
-    flattened_parts.append(obs_dict["target_death_mask"].astype(np.float32))
-
-    # Time left (1,)
-    flattened_parts.append(obs_dict["time_left"])
-
-    return np.concatenate(flattened_parts)
 
 
 # Define models for PPO
@@ -103,25 +71,13 @@ class Actor(GaussianMixin, Model):
         """Compute the policy distribution parameters.
 
         Args:
-            inputs: Dictionary containing input states
+            inputs: Dictionary containing input states. States are already flattened.
             role: Role of the model
 
         Returns:
             Tuple containing mean, log_std_parameter and features dictionary
         """
-        # Handle dictionary observations by flattening them
-        if isinstance(inputs["states"], dict):
-            # Convert dict observation to flattened tensor
-            flattened_batch = []
-
-            for i in range(len(inputs["states"]["player_position"])):
-                obs_dict = {key: value[i] for key, value in inputs["states"].items()}
-                flattened_obs = flatten_observation(obs_dict)
-                flattened_batch.append(flattened_obs)
-
-            x = torch.tensor(np.array(flattened_batch), dtype=torch.float32, device=self.device)
-        else:
-            x = inputs["states"]
+        x = inputs["states"]
 
         # Forward pass through network
         features = self.net(x)
@@ -171,25 +127,13 @@ class Critic(DeterministicMixin, Model):
         """Compute the value function for the given inputs.
 
         Args:
-            inputs: Dictionary containing states
+            inputs: Dictionary containing states. States are already flattened.
             role: Role of the model
 
         Returns:
             Tuple containing the computed value and an empty dict
         """
-        # Handle dictionary observations by flattening them
-        if isinstance(inputs["states"], dict):
-            # Convert dict observation to flattened tensor
-            flattened_batch = []
-
-            for i in range(len(inputs["states"]["player_position"])):
-                obs_dict = {key: value[i] for key, value in inputs["states"].items()}
-                flattened_obs = flatten_observation(obs_dict)
-                flattened_batch.append(flattened_obs)
-
-            x = torch.tensor(np.array(flattened_batch), dtype=torch.float32, device=self.device)
-        else:
-            x = inputs["states"]
+        x = inputs["states"]
 
         # Forward pass through network
         return self.net(x), {}
