@@ -275,7 +275,7 @@ else:
     print("Starting training...")
     print(f"Observation space size: {calculate_flattened_obs_space_size(env.observation_space)}")
     print(f"Action space: {env.action_space}")
-    print(f"Number of targets: {orig_env.num_targets}")
+    print(f"Number of targets: {env.num_targets}")
 
     cfg_trainer = {"timesteps": 250000, "headless": True}
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)

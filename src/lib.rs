@@ -286,6 +286,10 @@ impl DroneEnvironment {
         return self.time;
     }
 
+    pub fn get_max_time(&self) -> f64 {
+        return self.max_time;
+    }
+
     pub fn get_done(&self) -> bool {
         return self.time >= self.max_time || self.targets.iter().all(|t| t.is_dead());
     }
@@ -413,6 +417,10 @@ impl DroneEnvironmentWrapper {
 
     fn get_time(&self) -> f64 {
         self.drone_environment.get_time()
+    }
+
+    fn get_max_time(&self) -> f64 {
+        self.drone_environment.get_max_time()
     }
 
     fn get_done(&self) -> bool {

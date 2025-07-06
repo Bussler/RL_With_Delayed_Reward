@@ -52,8 +52,11 @@ class DroneGymEnv(gym.Env):
 
         # Create the Rust environment using DroneEnvironmentWrapper
         self.env = DroneEnvironmentWrapper.from_yaml_config(drone_env_config)
-        self.max_time = self.env.get_time()
+        _ = self.env.reset((0.0, 0.0, 0.0))
+
+        self.max_time = self.env.get_max_time()
         self.max_flight_time = 1000.0  # Need to get this from config
+
         self.num_targets = len(self.env.get_target_positions())
 
         self.action_space = self._create_action_space()
@@ -74,10 +77,8 @@ class DroneGymEnv(gym.Env):
 
         # TODO add variation: create reset with different scenario?
 
-        self.env.reset(player_position=(0.0, 0.0, 0.0))
+        observation_raw = self.env.reset(player_position=(0.0, 0.0, 0.0))
 
-        # Get the initial observation
-        observation_raw = self.env.get_observation()
         observation = self._process_observation(observation_raw)
         info: dict[str, Any] = self.env.get_information()
 
