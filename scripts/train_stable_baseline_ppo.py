@@ -28,28 +28,14 @@ else:
         gae_lambda=0.95,
         clip_range=0.2,
         tensorboard_log="./stable_baselines/drone_ppo_tensorboard/",
-        device="cpu",
+        device="cuda",
     )
 
-    # Monitor rewards during training
-    # from stable_baselines3.common.callbacks import BaseCallback
-
-    # class DebugCallback(BaseCallback):
-    #     def _on_step(self) -> bool:
-    #         if hasattr(self.locals, "rewards"):
-    #             rewards = self.locals["rewards"]
-    #             if np.isnan(rewards).any():
-    #                 print(f"NaN reward detected at step {self.num_timesteps}")
-    #         print(self.locals["n_steps"])
-    #         if self.locals["n_steps"] == 150:
-    #             print("Look at this")
-    #         return True
-
     # Train the agent
-    model.learn(total_timesteps=250000)  # callback=DebugCallback()
+    model.learn(total_timesteps=300000)
 
     # Save the trained model
-    model.save("drone_ppo_model")
+    model.save("./stable_baselines/drone_ppo_tensorboard/drone_ppo_model_default")
 
 # Create a new environment for evaluation with rendering
 eval_env = DroneGymEnv(renderer="matplotlib", render_mode="rgb_array")

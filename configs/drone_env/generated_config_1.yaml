@@ -2,6 +2,7 @@ environment:
   collision_radius: 0.5
   dt: 0.1
   max_time: 100.0
+  arena_size: 50.0
 player:
   position:
   - 0.0

@@ -22,6 +22,7 @@ pub struct EnvironmentConfig {
     pub dt: f64,
     pub max_time: f64,
     pub collision_radius: Option<f64>,
+    pub arena_size: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

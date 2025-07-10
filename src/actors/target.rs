@@ -11,6 +11,7 @@ pub struct Target {
     trajectory_fn: Option<String>,
     pub time: f64,
     max_flight_time: Option<f64>,
+    arena_radius: Option<f64>,
     expired: bool,
     shot_down: bool,
 }
@@ -32,6 +33,7 @@ impl Target {
         velocity: (f64, f64, f64),
         trajectory_fn: Option<String>,
         max_flight_time: Option<f64>,
+        arena_radius: Option<f64>,
     ) -> Self {
         Target {
             id,
@@ -40,6 +42,7 @@ impl Target {
             trajectory_fn,
             time: 0.0,
             max_flight_time,
+            arena_radius,
             expired: false,
             shot_down: false,
         }
@@ -85,7 +88,6 @@ impl Target {
                     .replace("t", &t.to_string())
                     .replace("z", &self.position.z.to_string());
 
-                // TODO check that this works as intended and we do not need a deep copy here!
                 let prev_position = self.position;
 
                 if let Ok(x_result) = eval_str(&x_fn) {
@@ -98,6 +100,16 @@ impl Target {
 
                 if let Ok(z_result) = eval_str(&z_fn) {
                     self.position.z = z_result;
+                }
+
+                // Check if target has gone out of bounds
+                if let Some(arena_radius) = self.arena_radius {
+                    if self.position.x.abs() > arena_radius
+                        || self.position.y.abs() > arena_radius
+                        || self.position.z.abs() > arena_radius {
+                        self.expired = true;
+                        return false;
+                    }
                 }
 
                 // Update velocity based on position change

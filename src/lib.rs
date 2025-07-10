@@ -23,6 +23,7 @@ pub struct DroneEnvironment {
     time: f64,
     dt: f64,
     max_time: f64,
+    arena_size: f64,
     collision_radius: f64,
     original_targets: Vec<Target>,
     expired_targets_this_step: usize,
@@ -36,6 +37,7 @@ impl DroneEnvironment {
         player_speed: f64,
         dt: f64,
         max_time: f64,
+        arena_size: f64,
         collision_radius: Option<f64>,
     ) -> Self {
         DroneEnvironment {
@@ -44,6 +46,7 @@ impl DroneEnvironment {
             time: 0.0,
             dt,
             max_time,
+            arena_size,
             collision_radius: collision_radius.unwrap_or(1.0),
             original_targets: Vec::new(),
             expired_targets_this_step: 0,
@@ -67,6 +70,7 @@ impl DroneEnvironment {
             config.player.speed,
             config.environment.dt,
             config.environment.max_time,
+            config.environment.arena_size,
             config.environment.collision_radius,
         );
 
@@ -98,6 +102,7 @@ impl DroneEnvironment {
             velocity,
             trajectory_fn,
             max_flight_time,
+            Some(self.arena_size/2.0),
         ));
     }
 
@@ -142,6 +147,7 @@ impl DroneEnvironment {
                 self.expired_targets_this_step += 1;
                 continue;
             }
+
             if distance(self.player.position, target.position) < self.collision_radius {
                 self.hit_targets_this_step += 1;
                 // Store time bonus for hit targets for reward
@@ -177,15 +183,11 @@ impl DroneEnvironment {
             });
 
             let dist = distance(self.player.position, target.position);
-            target_distances.push(if target_is_dead { 1000.0 } else { dist });
-            target_time_remaining.push(if target_is_dead {
-                1000.0 // f64::MAX
-            } else {
-                match target.remaining_time() {
+            target_distances.push(dist); // TODO LOOK HERE
+            target_time_remaining.push(match target.remaining_time() { // TODO LOOK HERE
                     Some(t) => t,
                     None => f64::MAX,
-                }
-            });
+                });
             target_death_mask.push(if target_is_dead { 0 } else { 1 });
         }
 
@@ -229,8 +231,8 @@ impl DroneEnvironment {
         reward += expiry_penalty;
         
         // Urgency bonus: reward for being close to targets about to expire
-        let urgency_bonus = self.calculate_urgency_bonus();
-        reward += urgency_bonus;
+        // let urgency_bonus = self.calculate_urgency_bonus();
+        // reward += urgency_bonus;
         
         // Completion bonus if all targets are eliminated by drone
         if self.targets.iter().all(|t| t.is_shot_down()) {
@@ -293,6 +295,10 @@ impl DroneEnvironment {
     pub fn get_done(&self) -> bool {
         return self.time >= self.max_time || self.targets.iter().all(|t| t.is_dead());
     }
+
+    pub fn get_arena_size(&self) -> f64 {
+        return self.arena_size;
+    }
 }
 
 #[pyclass]
@@ -308,6 +314,7 @@ impl DroneEnvironmentWrapper {
         player_speed: f64,
         dt: f64,
         max_time: f64,
+        arena_size: f64,
         collision_radius: Option<f64>,
     ) -> Self {
         DroneEnvironmentWrapper {
@@ -316,6 +323,7 @@ impl DroneEnvironmentWrapper {
                 player_speed,
                 dt,
                 max_time,
+                arena_size,
                 collision_radius,
             ),
         }
@@ -425,6 +433,10 @@ impl DroneEnvironmentWrapper {
 
     fn get_done(&self) -> bool {
         self.drone_environment.get_done()
+    }
+
+    fn get_arena_size(&self) -> f64 {
+        self.drone_environment.get_arena_size()
     }
 }
 

@@ -2,11 +2,10 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from gymnasium import spaces
-
 from drone_environment._lib import DroneEnvironmentWrapper
 from drone_environment.rendering import Renderer, RenderMode, get_renderer
 from drone_environment.utils import read_yml
+from gymnasium import spaces
 
 
 class DroneGymEnv(gym.Env):
@@ -19,43 +18,30 @@ class DroneGymEnv(gym.Env):
     def __init__(
         self,
         drone_env_config: str = "configs/drone_env/default_config.yaml",
-        arena_size: float = 50.0,
         renderer: Renderer | None = None,
         render_mode: RenderMode | None = None,
     ) -> None:
         """Initialize the drone environment.
 
         Args:
-            dt: Time step size in seconds for simulation updates. Smaller values provide
-                higher precision but slower simulation.
-            max_time: Maximum simulation time in seconds before episode termination.
-            player_speed: Movement speed of the player units in units per second.
-            collision_radius: Detection radius in units for player-target collisions.
-                Player within this distance of targets are considered hits.
-            num_targets: Number of enemy targets to spawn in the environment.
-            max_target_speed: Maximum speed in units per second that targets can move.
-            max_flight_time_range: Tuple of (min_time, max_time) in seconds defining the
-                range of flight times for targets before they expire.
-            arena_size: Side length of the cubic simulation arena in units. Entities
-                operate within a cube of dimensions arena_size × arena_size × arena_size.
+            drone_env_config: Path to the YAML configuration file for the DroneEnvironment.
             renderer: Optional renderer type for visualization. If None, no rendering
                 is performed. Currently supports "matplotlib".
             render_mode: Rendering mode for visualization. Options include "human" for
                 interactive display or "rgb_array" for programmatic access to frames.
         """
-        self.arena_size = arena_size
+        # Create the Rust environment using DroneEnvironmentWrapper
+        self.env = DroneEnvironmentWrapper.from_yaml_config(drone_env_config)
+        _ = self.env.reset((0.0, 0.0, 0.0))
+
+        self.arena_size = self.env.get_arena_size()
 
         self.render_mode = render_mode
         self.renderer = (
             None if renderer is None else get_renderer(renderer, self.render_mode, self.arena_size)
         )
 
-        # Create the Rust environment using DroneEnvironmentWrapper
-        self.env = DroneEnvironmentWrapper.from_yaml_config(drone_env_config)
-        _ = self.env.reset((0.0, 0.0, 0.0))
-
         self.max_time = self.env.get_max_time()
-        self.max_flight_time = 1000.0  # Need to get this from config
 
         self.num_targets = len(self.env.get_target_positions())
 
@@ -157,7 +143,7 @@ class DroneGymEnv(gym.Env):
                 ),
                 "target_time_remaining": spaces.Box(
                     low=0.0,
-                    high=self.max_flight_time,
+                    high=self.max_time,
                     shape=(self.num_targets,),
                     dtype=np.float64,
                 ),
