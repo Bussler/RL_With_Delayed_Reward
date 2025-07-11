@@ -64,8 +64,8 @@ class Actor(GaussianMixin, Model):
         )
 
         # Output layers for mean and log_std
-        self.mean_layer = nn.Linear(128, action_space.shape[0])
-        self.log_std_parameter = nn.Parameter(torch.zeros(action_space.shape[0]))
+        self.mean_layer = nn.Linear(128, self.num_actions)
+        self.log_std_parameter = nn.Parameter(torch.zeros(self.num_actions))
 
     def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, torch.Tensor, dict]:
         """Compute the policy distribution parameters.
@@ -82,16 +82,20 @@ class Actor(GaussianMixin, Model):
         # Forward pass through network
         features = self.net(x)
 
+        # Check for NaN values in features tensor
+        if torch.isnan(features).any():
+            print("WARNING: NaN values detected in features tensor!")
+
         # Compute mean
         mean = self.mean_layer(features)
 
         # Apply tanh to constrain actions to [-1, 1] range
-        mean = torch.tanh(mean)
+        mean = torch.tanh(mean)  # TODO test if this is a problem!
 
         return mean, self.log_std_parameter, {"features": features}
 
 
-class Critic(DeterministicMixin, Model):
+class ValueNW(DeterministicMixin, Model):
     def __init__(
         self,
         observation_space: gym.Space,
@@ -143,13 +147,10 @@ class Critic(DeterministicMixin, Model):
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Memory
-memory = RandomMemory(memory_size=16384, num_envs=env.num_envs, device=device)
-
 # Models
 models = {}
 models["policy"] = Actor(env.observation_space, env.action_space, device)
-models["value"] = Critic(env.observation_space, env.action_space, device)
+models["value"] = ValueNW(env.observation_space, env.action_space, device)
 
 # Configure and create PPO agent
 cfg = PPO_DEFAULT_CONFIG.copy()
@@ -173,8 +174,12 @@ cfg["state_preprocessor_kwargs"] = {"size": env.observation_space, "device": dev
 cfg["value_preprocessor"] = RunningStandardScaler
 cfg["value_preprocessor_kwargs"] = {"size": 1, "device": device}
 cfg["experiment"]["write_interval"] = 300  # seconds
-cfg["experiment"]["checkpoint_interval"] = 1000  # timesteps
+cfg["experiment"]["checkpoint_interval"] = 10000  # timesteps
 cfg["experiment"]["directory"] = os.path.join("skrl", "drone_ppo_tensorboard")  # log dir
+cfg["experiment"]["experiment_name"] = "DroneGym_PPO"  # Experiment name
+
+# Memory
+memory = RandomMemory(memory_size=cfg["rollouts"], num_envs=env.num_envs, device=device)
 
 # Create agent
 agent = PPO(
@@ -189,32 +194,7 @@ agent = PPO(
 if MODEL_PATH:
     # Load agent and run evaluation episode
     agent.load(MODEL_PATH)
-    agent.set_running_mode("eval")
     print(f"Model loaded from {MODEL_PATH}")
-
-    observation, info = env.reset()
-
-    total_reward = 0
-    done = False
-    step = 0
-
-    with torch.no_grad():
-        while not done and step < EVAL_LENGTH:
-            action = agent.act(observation, timestep=step, timesteps=1)[0]
-            next_observation, reward, terminated, truncated, info = env.step(action)
-            reward = reward.item() if hasattr(reward, "item") else reward
-
-            if step % EVAL_RENDER_INTERVAL == 0:
-                env.render()
-                print(f"Step: {step}, Action: {action}, Reward: {reward:.4f}, Total: {total_reward:.4f}")
-
-            total_reward += reward
-            observation = next_observation
-            done = terminated or truncated
-            step += 1
-
-    print(f"\nEpisode completed with total reward: {total_reward:.4f} in {step} steps")
-    env.close()
 else:
     # Configure and create trainer
     print("Starting training...")
@@ -222,7 +202,7 @@ else:
     print(f"Action space: {env.action_space}")
     print(f"Number of targets: {env.num_targets}")
 
-    cfg_trainer = {"timesteps": 250000, "headless": True}
+    cfg_trainer = {"timesteps": 300000, "headless": True}
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)
 
     # Start training
@@ -231,10 +211,32 @@ else:
     # Save the trained model
     models_dir = os.path.join("skrl", "drone_ppo_tensorboard", "models")
     os.makedirs(models_dir, exist_ok=True)
-    agent.save(os.path.join(models_dir, "agent"))
+    agent.save(os.path.join(models_dir, "agent_no_high_masking_no_urgency"))
 
     print(f"Training completed! Models saved to {models_dir}")
 
-    # Run evaluation
-    print("Running evaluation...")
-    trainer.eval()
+print("Running evaluation...")
+agent.set_running_mode("eval")
+observation, info = env.reset()
+
+total_reward = 0
+done = False
+step = 0
+
+with torch.no_grad():
+    while not done and step < EVAL_LENGTH:
+        action = agent.act(observation, timestep=step, timesteps=1)[0]
+        next_observation, reward, terminated, truncated, info = env.step(action)
+        reward = reward.item() if hasattr(reward, "item") else reward
+
+        if step % EVAL_RENDER_INTERVAL == 0:
+            env.render()
+            print(f"Step: {step}, Action: {action}, Reward: {reward:.4f}, Total: {total_reward:.4f}")
+
+        total_reward += reward
+        observation = next_observation
+        done = terminated or truncated
+        step += 1
+
+print(f"\nEpisode completed with total reward: {total_reward:.4f} in {step} steps")
+env.close()
