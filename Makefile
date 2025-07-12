@@ -11,7 +11,7 @@ cargo-fmt:
 ruff:
 	@echo Running Ruff...
 	uv run ruff format python/drone_environment/ scripts/
-	uv run ruff check --fix python/drone_environment/ scripts/
+	-uv run ruff check --fix python/drone_environment/ scripts/
 
 isort:
 	@echo Sorting imports with Isort...

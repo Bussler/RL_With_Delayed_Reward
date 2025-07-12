@@ -102,7 +102,7 @@ impl DroneEnvironment {
             velocity,
             trajectory_fn,
             max_flight_time,
-            Some(self.arena_size/2.0),
+            Some(self.arena_size / 2.0),
         ));
     }
 
@@ -136,7 +136,7 @@ impl DroneEnvironment {
         self.expired_targets_this_step = 0;
         self.hit_targets_this_step = 0;
         self.hit_target_time_bonuses.clear();
-        
+
         for target in &mut self.targets {
             if target.is_dead() {
                 continue;
@@ -184,10 +184,11 @@ impl DroneEnvironment {
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(dist); // TODO LOOK HERE
-            target_time_remaining.push(match target.remaining_time() { // TODO LOOK HERE
-                    Some(t) => t,
-                    None => f64::MAX,
-                });
+            target_time_remaining.push(match target.remaining_time() {
+                // TODO LOOK HERE
+                Some(t) => t,
+                None => f64::MAX,
+            });
             target_death_mask.push(if target_is_dead { 0 } else { 1 });
         }
 
@@ -212,60 +213,63 @@ impl DroneEnvironment {
 
     fn calculate_reward(&self) -> f64 {
         let mut reward = 0.0;
-        
+
         // Base reward for hitting targets
         let hit_reward = self.hit_targets_this_step as f64 * 100.0;
         reward += hit_reward;
-        
+
         // Time bonus for hitting targets early (normalized remaining time)
-        let time_bonus: f64 = self.hit_target_time_bonuses.iter()
+        let time_bonus: f64 = self
+            .hit_target_time_bonuses
+            .iter()
             .map(|&remaining_time| {
                 // Bonus scales with remaining time (0-50 points)
                 (remaining_time / self.max_time) * 50.0
             })
             .sum();
         reward += time_bonus;
-        
+
         // Heavy penalty for expired targets
         let expiry_penalty = self.expired_targets_this_step as f64 * -150.0;
         reward += expiry_penalty;
-        
+
         // Urgency bonus: reward for being close to targets about to expire
         // let urgency_bonus = self.calculate_urgency_bonus();
         // reward += urgency_bonus;
-        
+
         // Completion bonus if all targets are eliminated by drone
         if self.targets.iter().all(|t| t.is_shot_down()) {
             let time_efficiency = (self.max_time - self.time) / self.max_time;
             reward += 200.0 * time_efficiency; // Up to 200 bonus points
         }
-        
+
         // Small time penalty to encourage speed
         reward -= 0.1;
-        
+
         reward
     }
 
     fn calculate_urgency_bonus(&self) -> f64 {
         let mut urgency_bonus = 0.0;
-        
+
         for target in &self.targets {
             if target.is_dead() {
                 continue;
             }
-            
+
             if let Some(remaining_time) = target.remaining_time() {
                 let distance_to_target = distance(self.player.position, target.position);
                 let urgency_factor = 1.0 - (remaining_time / self.max_time);
-                
+
                 // Bonus for being close to urgent targets
-                if urgency_factor > 0.7 { // Target has < 30% time remaining
+                if urgency_factor > 0.7 {
+                    // Target has < 30% time remaining
                     let proximity_bonus = (10.0 / (1.0 + distance_to_target)) * urgency_factor;
                     urgency_bonus += proximity_bonus;
                 }
             }
         }
-        
+
         urgency_bonus
     }
 

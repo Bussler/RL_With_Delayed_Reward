@@ -106,7 +106,8 @@ impl Target {
                 if let Some(arena_radius) = self.arena_radius {
                     if self.position.x.abs() > arena_radius
                         || self.position.y.abs() > arena_radius
-                        || self.position.z.abs() > arena_radius {
+                        || self.position.z.abs() > arena_radius
+                    {
                         self.expired = true;
                         return false;
                     }
