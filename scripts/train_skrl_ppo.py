@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="no_mask_no_urgency_no_time_bonus_no_completion_bonus",
+        default="lstm_no_mask_no_urgency",
         help="Name of the experiment for logging and model saving",
     )
 
@@ -78,7 +78,7 @@ env = wrap_env(orig_env)
 
 
 # Define models for PPO
-class Actor(GaussianMixin, Model):
+class PolicyNW(GaussianMixin, Model):
     def __init__(
         self,
         observation_space: gym.spaces.Dict,
@@ -186,6 +186,124 @@ class ValueNW(DeterministicMixin, Model):
         return self.net(x), {}
 
 
+class ValueLSTMNW(DeterministicMixin, Model):
+    def __init__(
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        device: torch.device,
+        clip_actions: bool = False,
+        lstm_hidden_size: int = 128,
+        lstm_num_layers: int = 1,
+    ) -> None:
+        """Initialize the Critic model with LSTM.
+
+        Args:
+            observation_space: The observation space
+            action_space: The action space
+            device: The device to run the model on
+            clip_actions: Whether to clip actions
+            lstm_hidden_size: Hidden size for LSTM layer
+            lstm_num_layers: Number of LSTM layers
+        """
+        Model.__init__(self, observation_space, action_space, device)
+        DeterministicMixin.__init__(self, clip_actions)
+
+        input_size = int(calculate_flattened_obs_space_size(observation_space))
+        self.lstm_hidden_size = lstm_hidden_size
+        self.lstm_num_layers = lstm_num_layers
+
+        # Pre-LSTM layers
+        self.pre_lstm = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+        )
+
+        # LSTM layer
+        self.lstm = nn.LSTM(
+            input_size=128,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            batch_first=True,
+        )
+
+        # Post-LSTM layers
+        self.post_lstm = nn.Sequential(
+            nn.Linear(lstm_hidden_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+        )
+
+        # Initialize hidden states
+        self.hidden_states = None
+
+    def get_specification(self) -> dict:
+        """Get model specification including RNN information."""
+        spec = super().get_specification()
+        spec.update(
+            {
+                "rnn": {
+                    "sizes": [self.lstm_hidden_size] * self.lstm_num_layers,
+                    "layers": self.lstm_num_layers,
+                }
+            }
+        )
+        return spec
+
+    def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, dict]:
+        """Compute the value function for the given inputs.
+
+        Args:
+            inputs: Dictionary containing states and potentially RNN states. States are already flattened.
+            role: Role of the model
+
+        Returns:
+            Tuple containing the computed value and RNN states dict
+        """
+        x = inputs["states"]
+        batch_size = x.shape[0]
+
+        # Get RNN states from inputs or initialize
+        if "rnn" in inputs and len(inputs["rnn"]) > 0:
+            # Use provided RNN states
+            rnn_states = inputs["rnn"]
+            hidden_states = (
+                rnn_states[0].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size),
+                rnn_states[1].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size),
+            )
+        else:
+            # Initialize hidden states
+            hidden_states = (
+                torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+                torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+            )
+
+        # Pre-LSTM processing
+        x = self.pre_lstm(x)
+
+        # Add sequence dimension for LSTM (batch_size, seq_len=1, features)
+        x = x.unsqueeze(1)
+
+        # LSTM forward pass
+        lstm_out, new_hidden_states = self.lstm(x, hidden_states)
+
+        # Remove sequence dimension
+        lstm_out = lstm_out.squeeze(1)
+
+        # Post-LSTM processing
+        value = self.post_lstm(lstm_out)
+
+        # Prepare RNN states for output
+        rnn_states = [
+            new_hidden_states[0].view(batch_size, -1),  # hidden state
+            new_hidden_states[1].view(batch_size, -1),  # cell state
+        ]
+
+        return value, {"rnn": rnn_states}
+
+
 # Configure PPO
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -194,8 +312,9 @@ print(f"Experiment name: {EXPERIMENT_NAME}")
 
 # Models
 models = {}
-models["policy"] = Actor(env.observation_space, env.action_space, device)
+models["policy"] = PolicyNW(env.observation_space, env.action_space, device)
 models["value"] = ValueNW(env.observation_space, env.action_space, device)
+# models["value"] = ValueLSTMNW(env.observation_space, env.action_space, device)
 
 # Configure and create PPO agent
 cfg = PPO_DEFAULT_CONFIG.copy()
