@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import gymnasium as gym
@@ -5,7 +6,6 @@ import torch
 
 # Import our environment
 from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_size
-from torch import nn
 
 # Import skrl components
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
@@ -15,16 +15,63 @@ from skrl.models.torch import DeterministicMixin, GaussianMixin, Model
 from skrl.resources.preprocessors.torch import RunningStandardScaler
 from skrl.trainers.torch import SequentialTrainer
 from skrl.utils import set_seed
+from torch import nn
 
 # Set seed for reproducibility
 set_seed(42)
 
-MODEL_PATH = ""  # "skrl/drone_ppo_tensorboard/models/agent"
-EVAL_LENGTH = 1000
-EVAL_RENDER_INTERVAL = 5
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Train or evaluate PPO agent on drone environment")
+
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default="",
+        help="Path to load pre-trained model from. If empty, training will start from scratch.",
+    )
+
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default="no_mask_no_urgency_no_time_bonus_no_completion_bonus",
+        help="Name of the experiment for logging and model saving",
+    )
+
+    parser.add_argument(
+        "--config-path",
+        type=str,
+        default="configs/drone_env/default_config.yaml",
+        help="Path to the drone environment configuration YAML file",
+    )
+
+    parser.add_argument(
+        "--eval-length", type=int, default=1000, help="Maximum number of steps for evaluation episode"
+    )
+
+    parser.add_argument(
+        "--eval-render-interval", type=int, default=5, help="Interval for rendering during evaluation"
+    )
+
+    return parser.parse_args()
+
+
+# Parse command line arguments
+args = parse_args()
+
+MODEL_PATH = args.model_path
+EVAL_LENGTH = args.eval_length
+EVAL_RENDER_INTERVAL = args.eval_render_interval
+EXPERIMENT_NAME = args.experiment_name
+CONFIG_PATH = args.config_path
+
+# Validate config path exists
+if not os.path.exists(CONFIG_PATH):
+    raise FileNotFoundError(f"Configuration file not found: {CONFIG_PATH}")
 
 # Create the environment
-orig_env = DroneGymEnv(renderer="matplotlib", render_mode="rgb_array")
+orig_env = DroneGymEnv(drone_env_config=CONFIG_PATH, renderer="matplotlib", render_mode="rgb_array")
 
 # Wrap the environment for skrl
 env = wrap_env(orig_env)
@@ -81,10 +128,6 @@ class Actor(GaussianMixin, Model):
 
         # Forward pass through network
         features = self.net(x)
-
-        # Check for NaN values in features tensor
-        if torch.isnan(features).any():
-            print("WARNING: NaN values detected in features tensor!")
 
         # Compute mean
         mean = self.mean_layer(features)
@@ -146,6 +189,8 @@ class ValueNW(DeterministicMixin, Model):
 # Configure PPO
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
+print(f"Configuration: {CONFIG_PATH}")
+print(f"Experiment name: {EXPERIMENT_NAME}")
 
 # Models
 models = {}
@@ -176,7 +221,7 @@ cfg["value_preprocessor_kwargs"] = {"size": 1, "device": device}
 cfg["experiment"]["write_interval"] = 300  # seconds
 cfg["experiment"]["checkpoint_interval"] = 10000  # timesteps
 cfg["experiment"]["directory"] = os.path.join("skrl", "drone_ppo_tensorboard")  # log dir
-cfg["experiment"]["experiment_name"] = "DroneGym_PPO"  # Experiment name
+cfg["experiment"]["experiment_name"] = EXPERIMENT_NAME
 
 # Memory
 memory = RandomMemory(memory_size=cfg["rollouts"], num_envs=env.num_envs, device=device)
@@ -192,6 +237,10 @@ agent = PPO(
 )
 
 if MODEL_PATH:
+    # Validate model path exists
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+
     # Load agent and run evaluation episode
     agent.load(MODEL_PATH)
     print(f"Model loaded from {MODEL_PATH}")
@@ -211,7 +260,7 @@ else:
     # Save the trained model
     models_dir = os.path.join("skrl", "drone_ppo_tensorboard", "models")
     os.makedirs(models_dir, exist_ok=True)
-    agent.save(os.path.join(models_dir, "agent_no_high_masking_no_urgency"))
+    agent.save(os.path.join(models_dir, EXPERIMENT_NAME))
 
     print(f"Training completed! Models saved to {models_dir}")
 
