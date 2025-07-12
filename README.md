@@ -63,7 +63,12 @@ You can also set the following `setting.json` file in the local `.vscode/` direc
 
 ## Train an agent on the environment
 
-TODO
+- Train with stable baselines: `uv run python scripts/train_stable_baseline_ppo.py`
+- Train with skrl: `uv run python scripts/train_skrl_ppo.py`
+
+Both scripts will save the trained model in the `./skrl` or `./stable_baselines` directory respectively.  
+An example episode will be rendered to the `./animations` directory.  
+You can scip the training parts of the scripts and go straight to inference by providing a path to a trained model.
 
 ## Contributing
 - Install automatic git commit message with `git config --local commit.template .gitmessage`
