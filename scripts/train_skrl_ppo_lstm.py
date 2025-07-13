@@ -9,7 +9,7 @@ from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_siz
 from torch import nn
 
 # Import skrl components
-from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
+from skrl.agents.torch.ppo import PPO_DEFAULT_CONFIG, PPO_RNN
 from skrl.envs.wrappers.torch import wrap_env
 from skrl.memories.torch import RandomMemory
 from skrl.models.torch import DeterministicMixin, GaussianMixin, Model
@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="no_mask_no_urgency",
+        default="lstm_no_mask_no_urgency",
         help="Name of the experiment for logging and model saving",
     )
 
@@ -138,52 +138,254 @@ class PolicyNW(GaussianMixin, Model):
         return mean, self.log_std_parameter, {"features": features}
 
 
-class ValueNW(DeterministicMixin, Model):
+# class PolicyLSTMNW(GaussianMixin, Model):
+#     def __init__(
+#         self,
+#         observation_space: gym.spaces.Dict,
+#         action_space: gym.spaces.Box,
+#         device: torch.device,
+#         *,
+#         clip_actions: bool = False,
+#         lstm_hidden_size: int = 128,
+#         lstm_num_layers: int = 1,
+#         num_envs: int = 1,
+#         sequence_length: int = 128,
+#     ) -> None:
+#         """Initialize the Actor model with LSTM."""
+#         Model.__init__(self, observation_space, action_space, device)
+#         GaussianMixin.__init__(self, clip_actions)
+
+#         input_size = int(calculate_flattened_obs_space_size(observation_space))
+#         self.lstm_hidden_size = lstm_hidden_size
+#         self.lstm_num_layers = lstm_num_layers
+#         self.sequence_length = sequence_length
+#         self.num_envs = num_envs
+
+#         # LSTM layer
+#         self.lstm = nn.LSTM(
+#             input_size=128,
+#             hidden_size=lstm_hidden_size,
+#             num_layers=lstm_num_layers,
+#             batch_first=True,
+#         )
+
+#         # Pre-LSTM layers
+#         self.pre_lstm = nn.Sequential(
+#             nn.Linear(input_size, 256),
+#             nn.ReLU(),
+#             nn.Linear(256, 128),
+#             nn.ReLU(),
+#         )
+
+#         # Output layers for mean and log_std
+#         self.mean_layer = nn.Linear(lstm_hidden_size, self.num_actions)
+#         self.log_std_parameter = nn.Parameter(torch.zeros(self.num_actions))
+
+#     def get_specification(self) -> dict:
+#         """Get model specification including RNN information."""
+#         # spec = super().get_specification()
+#         # spec.update(
+#         #     {
+#         #         "rnn": {
+#         #             "sizes": [self.lstm_hidden_size] * self.lstm_num_layers,
+#         #             "layers": self.lstm_num_layers,
+#         #         }
+#         #     }
+#         # )
+#         # return spec
+
+#         return {
+#             "rnn": {
+#                 "sequence_length": self.sequence_length,
+#                 "sizes": [
+#                     (
+#                         self.lstm_num_layers,
+#                         self.num_envs,
+#                         self.lstm_hidden_size,
+#                     ),  # hidden states (D ∗ num_layers, N, Hout)
+#                     (self.lstm_num_layers, self.num_envs, self.lstm_hidden_size),
+#                 ],
+#             }
+#         }
+
+#     def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, torch.Tensor, dict]:
+#         """Compute the policy distribution parameters."""
+#         x = inputs["states"]
+#         batch_size = x.shape[0]
+
+#         # Handle RNN states more robustly
+#         if "rnn" in inputs and inputs["rnn"] is not None and len(inputs["rnn"]) == 2:
+#             try:
+#                 h_state = inputs["rnn"][0].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size)
+#                 c_state = inputs["rnn"][1].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size)
+#                 hidden_states = (h_state.to(self.device), c_state.to(self.device))
+#             except (RuntimeError, IndexError) as e:
+#                 print(f"Warning: RNN state reshaping failed ({e}), using zero states")
+#                 hidden_states = self._get_zero_hidden_states(batch_size)
+#         else:
+#             hidden_states = self._get_zero_hidden_states(batch_size)
+
+#         # Pre-LSTM processing
+#         x = self.pre_lstm(x)
+
+#         # Add sequence dimension for LSTM
+#         x = x.unsqueeze(1)
+
+#         # LSTM forward pass
+#         lstm_out, new_hidden_states = self.lstm(x, hidden_states)
+
+#         # Remove sequence dimension
+#         lstm_out = lstm_out.squeeze(1)
+
+#         # Compute mean
+#         mean = self.mean_layer(lstm_out)
+#         mean = torch.tanh(mean)  # Constrain to [-1, 1]
+
+#         # Prepare RNN states for output
+#         rnn_states = [
+#             new_hidden_states[0].view(batch_size, -1).contiguous(),
+#             new_hidden_states[1].view(batch_size, -1).contiguous(),
+#         ]
+
+#         return mean, self.log_std_parameter, {"rnn": rnn_states}
+
+#     def _get_zero_hidden_states(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor]:
+#         """Get zero-initialized hidden states."""
+#         return (
+#             torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+#             torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+#         )
+
+
+class ValueLSTMNW(DeterministicMixin, Model):
     def __init__(
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
         device: torch.device,
         clip_actions: bool = False,
+        lstm_hidden_size: int = 128,
+        lstm_num_layers: int = 1,
+        num_envs: int = 1,
+        sequence_length: int = 128,
     ) -> None:
-        """Initialize the Critic model.
+        """Initialize the Critic model with LSTM.
 
         Args:
             observation_space: The observation space
             action_space: The action space
             device: The device to run the model on
             clip_actions: Whether to clip actions
+            lstm_hidden_size: Hidden size for LSTM layer
+            lstm_num_layers: Number of LSTM layers
         """
         Model.__init__(self, observation_space, action_space, device)
         DeterministicMixin.__init__(self, clip_actions)
 
         input_size = int(calculate_flattened_obs_space_size(observation_space))
+        self.lstm_hidden_size = lstm_hidden_size
+        self.lstm_num_layers = lstm_num_layers
+        self.sequence_length = sequence_length
+        self.num_envs = num_envs
 
-        # Define network architecture
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
+        # LSTM layer
+        self.lstm = nn.LSTM(
+            input_size=128,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            batch_first=True,
+        )
+
+        # Pre-LSTM layers
+        self.pre_lstm = nn.Sequential(
+            nn.Linear(input_size, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, 1),
         )
+
+        # Post-LSTM layers
+        self.post_lstm = nn.Sequential(
+            nn.Linear(lstm_hidden_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+        )
+
+        # Initialize hidden states
+        self.hidden_states = None
+
+    def get_specification(self) -> dict:
+        """Get model specification including RNN information."""
+        return {
+            "rnn": {
+                "sequence_length": self.sequence_length,
+                "sizes": [
+                    (
+                        self.lstm_num_layers,
+                        self.num_envs,
+                        self.lstm_hidden_size,
+                    ),  # Hidden states
+                    (
+                        self.lstm_num_layers,
+                        self.num_envs,
+                        self.lstm_hidden_size,
+                    ),  # Cell states
+                ],
+            }
+        }
 
     def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, dict]:
         """Compute the value function for the given inputs.
 
         Args:
-            inputs: Dictionary containing states. States are already flattened.
+            inputs: Dictionary containing states and potentially RNN states. States are already flattened.
             role: Role of the model
 
         Returns:
-            Tuple containing the computed value and an empty dict
+            Tuple containing the computed value and RNN states dict
         """
         x = inputs["states"]
+        batch_size = x.shape[0]
 
-        # Forward pass through network
-        return self.net(x), {}
+        # Get RNN states from inputs or initialize
+        if "rnn" in inputs and inputs["rnn"] is not None and len(inputs["rnn"]) >= 2:
+            # Use provided RNN states - reshape from flattened form
+            rnn_states = inputs["rnn"]
+            hidden_states = (
+                rnn_states[0].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size),
+                rnn_states[1].view(self.lstm_num_layers, batch_size, self.lstm_hidden_size),
+            )
+        else:
+            # Initialize hidden states
+            hidden_states = (
+                torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+                torch.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size, device=self.device),
+            )
+
+        # Pre-LSTM processing
+        x = self.pre_lstm(x)
+
+        # Add sequence dimension for LSTM (batch_size, seq_len=1, features)
+        x = x.unsqueeze(1)
+
+        # LSTM forward pass
+        lstm_out, new_hidden_states = self.lstm(x, hidden_states)
+
+        # Remove sequence dimension
+        lstm_out = lstm_out.squeeze(1)
+
+        # Post-LSTM processing
+        value = self.post_lstm(lstm_out)
+
+        # Prepare RNN states for output
+        # rnn_states = [
+        #     new_hidden_states[0].view(batch_size, -1).contiguous(),  # flatten hidden state
+        #     new_hidden_states[1].view(batch_size, -1).contiguous(),  # flatten cell state
+        # ]
+
+        rnn_states = [new_hidden_states[0], new_hidden_states[1]]
+
+        return value, {"rnn": rnn_states}
 
 
 # Configure PPO
@@ -195,7 +397,7 @@ print(f"Experiment name: {EXPERIMENT_NAME}")
 # Models
 models = {}
 models["policy"] = PolicyNW(env.observation_space, env.action_space, device)
-models["value"] = ValueNW(env.observation_space, env.action_space, device)
+models["value"] = ValueLSTMNW(env.observation_space, env.action_space, device)
 
 # Configure and create PPO agent
 cfg = PPO_DEFAULT_CONFIG.copy()
@@ -227,7 +429,7 @@ cfg["experiment"]["experiment_name"] = EXPERIMENT_NAME
 memory = RandomMemory(memory_size=cfg["rollouts"], num_envs=env.num_envs, device=device)
 
 # Create agent
-agent = PPO(
+agent = PPO_RNN(
     models=models,
     memory=memory,
     cfg=cfg,
