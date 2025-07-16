@@ -68,7 +68,23 @@ You can also set the following `setting.json` file in the local `.vscode/` direc
 
 Both scripts will save the trained model in the `./skrl` or `./stable_baselines` directory respectively.  
 An example episode will be rendered to the `./animations` directory.  
-You can scip the training parts of the scripts and go straight to inference by providing a path to a trained model.
+You can skip the training parts of the scripts and go straight to inference by providing a path to a trained model.
+
+Comand line arguments for `train_skrl_ppo.py`:
+```
+--model-path
+            Path to load pre-trained model from. If empty, training will start from scratch.
+--experiment-name
+            Name of the experiment for logging and model saving
+--use-lstm
+            Whether to use LSTM for the ppo value function or not
+--config-path
+            Path to the drone environment configuration YAML file
+--training-length
+            Maximum number of steps for training episode
+--eval-render-interval
+            Interval for rendering during evaluation
+```
 
 ## Contributing
 - Install automatic git commit message with `git config --local commit.template .gitmessage`

@@ -1,19 +1,19 @@
 import argparse
 import os
 
-import gymnasium as gym
 import torch
 
 # Import our environment
 from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_size
-from torch import nn
+from drone_environment.networks.ppo_policy import PolicyNW
+from drone_environment.networks.ppo_value import ValueLSTM, ValueNW
 
 # Import skrl components
-from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
+from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG, PPO_RNN
 from skrl.envs.wrappers.torch import wrap_env
 from skrl.memories.torch import RandomMemory
-from skrl.models.torch import DeterministicMixin, GaussianMixin, Model
 from skrl.resources.preprocessors.torch import RunningStandardScaler
+from skrl.resources.schedulers.torch import KLAdaptiveRL
 from skrl.trainers.torch import SequentialTrainer
 from skrl.utils import set_seed
 
@@ -35,8 +35,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="no_mask_no_urgency",
+        default="lstm_no_mask_no_urgency_withScheduler2",
         help="Name of the experiment for logging and model saving",
+    )
+
+    parser.add_argument(
+        "--use-lstm",
+        type=bool,
+        default=True,
+        help="Whether to use LSTM for the ppo value function or not",
     )
 
     parser.add_argument(
@@ -47,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--eval-length", type=int, default=1000, help="Maximum number of steps for evaluation episode"
+        "--training-length", type=int, default=300000, help="Maximum number of steps for training episode"
     )
 
     parser.add_argument(
@@ -61,7 +68,8 @@ def parse_args() -> argparse.Namespace:
 args = parse_args()
 
 MODEL_PATH = args.model_path
-EVAL_LENGTH = args.eval_length
+TRAINING_LENGTH = args.training_length
+EVAL_LENGTH = 1000
 EVAL_RENDER_INTERVAL = args.eval_render_interval
 EXPERIMENT_NAME = args.experiment_name
 CONFIG_PATH = args.config_path
@@ -77,115 +85,6 @@ orig_env = DroneGymEnv(drone_env_config=CONFIG_PATH, renderer="matplotlib", rend
 env = wrap_env(orig_env)
 
 
-# Define models for PPO
-class PolicyNW(GaussianMixin, Model):
-    def __init__(
-        self,
-        observation_space: gym.spaces.Dict,
-        action_space: gym.spaces.Box,
-        device: torch.device,
-        *,
-        clip_actions: bool = False,
-    ) -> None:
-        """Initialize the Actor model.
-
-        Args:
-            observation_space: The observation space of the environment
-            action_space: The action space of the environment
-            device: The device to run the model on
-            clip_actions: Whether to clip actions to their bounds
-        """
-        Model.__init__(self, observation_space, action_space, device)
-        GaussianMixin.__init__(self, clip_actions)
-
-        input_size = int(calculate_flattened_obs_space_size(observation_space))
-
-        # Define network architecture
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-        )
-
-        # Output layers for mean and log_std
-        self.mean_layer = nn.Linear(128, self.num_actions)
-        self.log_std_parameter = nn.Parameter(torch.zeros(self.num_actions))
-
-    def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, torch.Tensor, dict]:
-        """Compute the policy distribution parameters.
-
-        Args:
-            inputs: Dictionary containing input states. States are already flattened.
-            role: Role of the model
-
-        Returns:
-            Tuple containing mean, log_std_parameter and features dictionary
-        """
-        x = inputs["states"]
-
-        # Forward pass through network
-        features = self.net(x)
-
-        # Compute mean
-        mean = self.mean_layer(features)
-
-        # Apply tanh to constrain actions to [-1, 1] range
-        mean = torch.tanh(mean)  # TODO test if this is a problem!
-
-        return mean, self.log_std_parameter, {"features": features}
-
-
-class ValueNW(DeterministicMixin, Model):
-    def __init__(
-        self,
-        observation_space: gym.Space,
-        action_space: gym.Space,
-        device: torch.device,
-        clip_actions: bool = False,
-    ) -> None:
-        """Initialize the Critic model.
-
-        Args:
-            observation_space: The observation space
-            action_space: The action space
-            device: The device to run the model on
-            clip_actions: Whether to clip actions
-        """
-        Model.__init__(self, observation_space, action_space, device)
-        DeterministicMixin.__init__(self, clip_actions)
-
-        input_size = int(calculate_flattened_obs_space_size(observation_space))
-
-        # Define network architecture
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1),
-        )
-
-    def compute(self, inputs: dict, role: str) -> tuple[torch.Tensor, dict]:
-        """Compute the value function for the given inputs.
-
-        Args:
-            inputs: Dictionary containing states. States are already flattened.
-            role: Role of the model
-
-        Returns:
-            Tuple containing the computed value and an empty dict
-        """
-        x = inputs["states"]
-
-        # Forward pass through network
-        return self.net(x), {}
-
-
 # Configure PPO
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -195,7 +94,11 @@ print(f"Experiment name: {EXPERIMENT_NAME}")
 # Models
 models = {}
 models["policy"] = PolicyNW(env.observation_space, env.action_space, device)
-models["value"] = ValueNW(env.observation_space, env.action_space, device)
+
+if args.use_lstm:
+    models["value"] = ValueLSTM(env.observation_space, env.action_space, device)
+else:
+    models["value"] = ValueNW(env.observation_space, env.action_space, device)
 
 # Configure and create PPO agent
 cfg = PPO_DEFAULT_CONFIG.copy()
@@ -205,7 +108,8 @@ cfg["mini_batches"] = 32
 cfg["discount_factor"] = 0.99
 cfg["lambda"] = 0.95
 cfg["learning_rate"] = 3e-4
-cfg["learning_rate_scheduler"] = None
+cfg["learning_rate_scheduler"] = KLAdaptiveRL
+cfg["learning_rate_scheduler_kwargs"] = {"kl_threshold": 0.008}
 cfg["grad_norm_clip"] = 0.5
 cfg["ratio_clip"] = 0.2
 cfg["value_clip"] = 0.2
@@ -227,14 +131,24 @@ cfg["experiment"]["experiment_name"] = EXPERIMENT_NAME
 memory = RandomMemory(memory_size=cfg["rollouts"], num_envs=env.num_envs, device=device)
 
 # Create agent
-agent = PPO(
-    models=models,
-    memory=memory,
-    cfg=cfg,
-    observation_space=env.observation_space,
-    action_space=env.action_space,
-    device=device,
-)
+if args.use_lstm:
+    agent = PPO_RNN(
+        models=models,
+        memory=memory,
+        cfg=cfg,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=device,
+    )
+else:
+    agent = PPO(
+        models=models,
+        memory=memory,
+        cfg=cfg,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=device,
+    )
 
 if MODEL_PATH:
     # Validate model path exists
@@ -251,7 +165,7 @@ else:
     print(f"Action space: {env.action_space}")
     print(f"Number of targets: {env.num_targets}")
 
-    cfg_trainer = {"timesteps": 300000, "headless": True}
+    cfg_trainer = {"timesteps": TRAINING_LENGTH, "headless": True}
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)
 
     # Start training
