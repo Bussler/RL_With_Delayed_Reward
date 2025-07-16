@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="lstm_no_mask_no_urgency_withScheduler2",
+        default="lstm_no_mask_no_urgency",
         help="Name of the experiment for logging and model saving",
     )
 

@@ -183,9 +183,8 @@ impl DroneEnvironment {
             });
 
             let dist = distance(self.player.position, target.position);
-            target_distances.push(dist); // TODO LOOK HERE
+            target_distances.push(dist);
             target_time_remaining.push(match target.remaining_time() {
-                // TODO LOOK HERE
                 Some(t) => t,
                 None => f64::MAX,
             });

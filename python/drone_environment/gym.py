@@ -61,8 +61,6 @@ class DroneGymEnv(gym.Env):
         if seed is not None:
             np.random.seed(seed)
 
-        # TODO add variation: create reset with different scenario?
-
         observation_raw = self.env.reset(player_position=(0.0, 0.0, 0.0))
 
         observation = self._process_observation(observation_raw)

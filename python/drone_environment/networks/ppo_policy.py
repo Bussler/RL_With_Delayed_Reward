@@ -60,6 +60,6 @@ class PolicyNW(GaussianMixin, Model):
         mean = self.mean_layer(features)
 
         # Apply tanh to constrain actions to [-1, 1] range
-        mean = torch.tanh(mean)  # TODO test if this is a problem!
+        mean = torch.tanh(mean)
 
         return mean, self.log_std_parameter, {"features": features}
