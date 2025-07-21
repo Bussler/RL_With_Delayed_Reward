@@ -1,6 +1,7 @@
 .vscode/
 /skrl/
 /drone_ppo_tensorboard/
+/animations/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -214,5 +215,5 @@ TAGS
 TAGS.*
 
 # Custom
-*.gif
+# *.gif
 stable_baselines
