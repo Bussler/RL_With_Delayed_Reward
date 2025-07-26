@@ -1,5 +1,9 @@
 # RL_With_Delayed_Reward
 
+## Executive Summary
+
+This project investigates reinforcement learning in environments with delayed rewards through a 3D target-catching simulation. The research demonstrates that traditional delayed reward structures significantly hinder learning performance, while introducing intermediate reward signals and LSTM-enhanced value functions dramatically improves training convergence and agent effectiveness. Key findings show that combining proximity-based intermediate rewards with LSTM-integrated PPO value functions outperforms baseline delayed-reward approaches, highlighting the critical importance of reward engineering and temporal understanding in sparse reward environments. The simulation environment is implemented in Rust for performance optimization with a Python interface for RL training.
+
 Training an agent with reinforcement learning to function in a rust simulation that only gives delayed rewards.
 
 ## Results
