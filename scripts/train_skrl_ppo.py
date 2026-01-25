@@ -5,7 +5,7 @@ import torch
 
 # Import our environment
 from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_size
-from drone_environment.networks.ppo_policy import PolicyNW
+from drone_environment.networks.ppo_policy import PolicyLSTM, PolicyNW
 from drone_environment.networks.ppo_value import ValueLSTM, ValueNW
 
 # Import skrl components
@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment-name",
         type=str,
-        default="lstm_no_mask_no_urgency",
+        default="test",
         help="Name of the experiment for logging and model saving",
     )
 
@@ -93,11 +93,11 @@ print(f"Experiment name: {EXPERIMENT_NAME}")
 
 # Models
 models = {}
-models["policy"] = PolicyNW(env.observation_space, env.action_space, device)
-
 if args.use_lstm:
+    models["policy"] = PolicyLSTM(env.observation_space, env.action_space, device)
     models["value"] = ValueLSTM(env.observation_space, env.action_space, device)
 else:
+    models["policy"] = PolicyNW(env.observation_space, env.action_space, device)
     models["value"] = ValueNW(env.observation_space, env.action_space, device)
 
 # Configure and create PPO agent
