@@ -19,6 +19,8 @@ dependencies = [
     "skrl[torch]>=1.4.3,<2.0.0",
     "pyyaml>=6.0.2",
     "types-pyyaml>=6.0.12.20250516",
+    "omegaconf>=2.3.0",
+    "pydantic>=2.0.0",
 ]
 
 [dependency-groups]

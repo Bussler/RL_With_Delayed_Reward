@@ -90,26 +90,16 @@ cargo build
 ## Train an agent on the environment
 
 - Train with skrl: `uv run python scripts/train_skrl_ppo.py`
-- Train with stable baselines: `uv run python scripts/train_stable_baseline_ppo.py`
+- Train with additional rudder return predictor: `uv run python scripts/train_skrl_ppo_rudder.py`
 
-Both scripts will save the trained model in the `./skrl` or `./stable_baselines` directory respectively.  
+Both scripts will save the trained model in the `./skrl` directory.  
 An example episode will be rendered to the `./animations` directory.  
 You can skip the training parts of the scripts and go straight to inference by providing a path to a trained model.
 
-Comand line arguments for `train_skrl_ppo.py`:
+Comand line arguments for the training scripts:
 ```
---model-path
-            Path to load pre-trained model from. If empty, training will start from scratch.
---experiment-name
-            Name of the experiment for logging and model saving
---use-lstm
-            Whether to use LSTM for the ppo value function or not
---config-path
-            Path to the drone environment configuration YAML file
---training-length
-            Maximum number of steps for training episode
---eval-render-interval
-            Interval for rendering during evaluation
+--config to specify a custom training configuration file. Defaults in configs/training.
+--set to override a specific value in the config file.
 ```
 
 ## Contributing

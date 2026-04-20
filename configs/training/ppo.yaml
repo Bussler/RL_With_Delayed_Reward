@@ -1,0 +1,35 @@
+# Default training configuration for PPO on the drone environment.
+# All values here match the Pydantic defaults in scripts/config.py.
+# Override any value at runtime with: --set key.nested=value
+
+model_path: ""
+training_length: 300000
+eval_length: 1000
+eval_render_interval: 5
+
+experiment:
+  experiment_name: new_lstm
+  directory: skrl/drone_ppo_tensorboard
+  write_interval: 300       # seconds between TensorBoard writes
+  checkpoint_interval: 10000  # timesteps between model checkpoints
+
+env:
+  drone_config_path: configs/drone_env/default_config.yaml
+  renderer: matplotlib
+  render_mode: rgb_array
+
+ppo:
+  rollouts: 2048
+  learning_epochs: 10
+  mini_batches: 32
+  discount_factor: 0.99
+  lambda: 0.95
+  learning_rate: 3.0e-4
+  kl_threshold_scheduler: 0.008
+  grad_norm_clip: 0.5
+  ratio_clip: 0.2
+  value_clip: 0.2
+  clip_predicted_values: true
+  entropy_loss_scale: 0.01
+  value_loss_scale: 0.5
+  use_lstm: true
