@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 import torch
-from config import TrainConfig, load_config
+from drone_environment.config import TrainConfig, load_config
 from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_size
 from drone_environment.networks.ppo_policy import PolicyLSTM, PolicyNW
 from drone_environment.networks.ppo_value import ValueLSTM, ValueNW
