@@ -213,37 +213,31 @@ impl DroneEnvironment {
     fn calculate_reward(&self) -> f64 {
         let mut reward = 0.0;
 
-        // Base reward for hitting targets
-        let hit_reward = self.hit_targets_this_step as f64 * 100.0;
-        reward += hit_reward;
+        // Hit reward
+        reward += self.hit_targets_this_step as f64;
 
-        // Time bonus for hitting targets early (normalized remaining time)
-        let time_bonus: f64 = self
+        // Time bonus in [0, 0.5] per hit
+        reward += self
             .hit_target_time_bonuses
             .iter()
-            .map(|&remaining_time| {
-                // Bonus scales with remaining time (0-50 points)
-                (remaining_time / self.max_time) * 50.0
-            })
-            .sum();
-        reward += time_bonus;
+            .map(|&remaining_time| (remaining_time / self.max_time) * 0.5)
+            .sum::<f64>();
 
-        // Heavy penalty for expired targets
-        let expiry_penalty = self.expired_targets_this_step as f64 * -150.0;
-        reward += expiry_penalty;
+        // Expiry penalty in [-1, 0] per expiry (symmetric to hit)
+        reward += self.expired_targets_this_step as f64 * -1.0;
 
         // Urgency bonus: reward for being close to targets about to expire
         // let urgency_bonus = self.calculate_urgency_bonus();
         // reward += urgency_bonus;
 
-        // Completion bonus if all targets are eliminated by drone
-        if self.targets.iter().all(|t| t.is_shot_down()) {
+        // Completion bonus
+        if self.get_done() && self.targets.iter().all(|t| t.is_shot_down()) {
             let time_efficiency = (self.max_time - self.time) / self.max_time;
-            reward += 200.0 * time_efficiency; // Up to 200 bonus points
+            reward += 5.0 * time_efficiency;
         }
 
-        // Small time penalty to encourage speed
-        reward -= 0.1;
+        // Small step cost for urgency
+        reward -= 0.001;
 
         reward
     }
