@@ -164,8 +164,14 @@ done = False
 step = 0
 
 with torch.no_grad():
+    rnn_states = None
     while not done and step < cfg.eval_length:
-        action = agent.act(observation, timestep=step, timesteps=1)[0]
+        action, _, outputs = agent.policy.act(
+            {"states": observation.unsqueeze(0), "rnn": rnn_states}, role="policy"
+        )
+
+        rnn_states = outputs.get("rnn", None)
+
         next_observation, reward, terminated, truncated, info = env.step(action)
         reward = reward.item() if hasattr(reward, "item") else reward
 
