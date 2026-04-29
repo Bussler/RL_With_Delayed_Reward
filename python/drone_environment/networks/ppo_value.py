@@ -193,8 +193,21 @@ class ValueLSTM(Model):
         terminated = inputs.get("terminated")
 
         if rnn_states is None:
-            message = "RNN States not instantiated!"
-            raise ValueError(message)
+            h0 = torch.zeros(
+                self.lstm_num_layers,
+                self.batch_size,
+                self.lstm_hidden_size,
+                device=self.device,
+                dtype=states.dtype,
+            )
+            c0 = torch.zeros(
+                self.lstm_num_layers,
+                self.batch_size,
+                self.lstm_hidden_size,
+                device=self.device,
+                dtype=states.dtype,
+            )
+            rnn_states = (h0, c0)
 
         values, new_rnn_states = self._forward_core(states, rnn_states, terminated)
         info = {"rnn": new_rnn_states}

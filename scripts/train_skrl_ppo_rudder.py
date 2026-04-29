@@ -1,32 +1,34 @@
-"""Train PPO agent on the drone environment.
+"""Train PPO with RUDDER reward redistribution on the drone environment.
 
 Usage examples:
     # Train from scratch with defaults
-    python scripts/train_skrl_ppo.py
+    python scripts/train_skrl_ppo_rudder.py
 
     # Use a custom config file
-    python scripts/train_skrl_ppo.py --config configs/training/ppo.yaml
+    python scripts/train_skrl_ppo_rudder.py --config configs/training/ppo_rudder.yaml
 
     # Override individual values (dot-notation, repeat as needed)
-    python scripts/train_skrl_ppo.py --set ppo.learning_rate=1e-3 --set experiment.experiment_name=test
+    python scripts/train_skrl_ppo_rudder.py --set rudder.alpha=0.5 --set rudder.warmup_episodes=30
 
     # Load a pre-trained model for evaluation only
-    python scripts/train_skrl_ppo.py --set model_path=skrl/drone_ppo_tensorboard/models/new_lstm
+    python scripts/train_skrl_ppo_rudder.py --set model_path=skrl/drone_ppo_tensorboard/models/rudder_lstm
 """
 
 import argparse
+import logging
 import os
 import sys
 
 # Ensure scripts/ is on sys.path so `config` module is importable when
-# running with `python scripts/train_skrl_ppo.py` from the project root.
+# running with `python scripts/train_skrl_ppo_rudder.py` from the project root.
 sys.path.insert(0, os.path.dirname(__file__))
 
 import torch
-from drone_environment.config import TrainConfig, load_config
+from drone_environment.config import TrainRudderConfig, load_config
 from drone_environment.gym import DroneGymEnv, calculate_flattened_obs_space_size
 from drone_environment.networks.ppo_policy import PolicyLSTM, PolicyNW
 from drone_environment.networks.ppo_value import ValueLSTM, ValueNW
+from drone_environment.rudder import RudderRewardWrapper
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG, PPO_RNN
 from skrl.envs.wrappers.torch import wrap_env
@@ -36,14 +38,16 @@ from skrl.resources.schedulers.torch import KLAdaptiveRL
 from skrl.trainers.torch import SequentialTrainer
 from skrl.utils import set_seed
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
+
 set_seed(42)
 
-parser = argparse.ArgumentParser(description="Train or evaluate PPO agent on the drone environment")
+parser = argparse.ArgumentParser(description="Train PPO + RUDDER agent on the drone environment")
 parser.add_argument(
     "--config",
     type=str,
-    default="configs/training/ppo.yaml",
-    help="Path to YAML config file (default: configs/training/ppo.yaml)",
+    default="configs/training/ppo_rudder.yaml",
+    help="Path to YAML config file (default: configs/training/ppo_rudder.yaml)",
 )
 parser.add_argument(
     "--set",
@@ -51,33 +55,54 @@ parser.add_argument(
     action="append",
     default=[],
     dest="overrides",
-    help="Override a config value using dot-notation, e.g. --set ppo.learning_rate=1e-3",
+    help="Override a config value using dot-notation, e.g. --set rudder.alpha=0.5",
 )
 args = parser.parse_args()
 
-
 # Config
-cfg: TrainConfig = load_config(args.config, args.overrides, TrainConfig)
+cfg: TrainRudderConfig = load_config(args.config, args.overrides, TrainRudderConfig)
 
 print(f"Configuration: {args.config}")
 print(f"Experiment name: {cfg.experiment.experiment_name}")
 print(f"Drone env config: {cfg.env.drone_config_path}")
+print(
+    f"RUDDER alpha={cfg.rudder.alpha}, warmup={cfg.rudder.warmup_episodes}, "
+    f"train_interval={cfg.rudder.train_interval}, buffer_size={cfg.rudder.buffer_size}"
+)
 if args.overrides:
     print(f"Overrides applied: {args.overrides}")
 
-# Environment
-orig_env = DroneGymEnv(
+# Environment: DroneGymEnv → RudderRewardWrapper -> skrl wrap
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+base_env = DroneGymEnv(
     drone_env_config=cfg.env.drone_config_path,
     renderer=cfg.env.renderer,
     render_mode=cfg.env.render_mode,
 )
-env = wrap_env(orig_env)
 
+obs_dim = calculate_flattened_obs_space_size(base_env.observation_space)
+action_dim = int(base_env.action_space.shape[0])
+
+rudder_env = RudderRewardWrapper(
+    base_env,
+    obs_dim=obs_dim,
+    action_dim=action_dim,
+    alpha=cfg.rudder.alpha,
+    warmup_episodes=cfg.rudder.warmup_episodes,
+    train_interval=cfg.rudder.train_interval,
+    train_epochs=cfg.rudder.train_epochs,
+    batch_size=cfg.rudder.batch_size,
+    buffer_size=cfg.rudder.buffer_size,
+    predictor_lr=cfg.rudder.predictor_lr,
+    predictor_hidden=cfg.rudder.predictor_hidden,
+    device=device,
+)
+
+env = wrap_env(rudder_env)
 
 # Agent setup
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
 models: dict[str, object] = {}
 if cfg.ppo.use_lstm:
     models["policy"] = PolicyLSTM(env.observation_space, env.action_space, device)
@@ -133,17 +158,16 @@ else:
         device=device,
     )
 
-# Training or evaluation
+# Training
 if cfg.model_path:
     if not os.path.exists(cfg.model_path):
         raise FileNotFoundError(f"Model file not found: {cfg.model_path}")
     agent.load(cfg.model_path)
     print(f"Model loaded from {cfg.model_path}")
 else:
-    print("Starting training...")
-    print(f"Observation space size: {calculate_flattened_obs_space_size(env.observation_space)}")
+    print("Starting training with RUDDER reward redistribution...")
+    print(f"Observation space size: {obs_dim}")
     print(f"Action space: {env.action_space}")
-    print(f"Number of targets: {env.num_targets}")
 
     cfg_trainer = {"timesteps": cfg.training_length, "headless": True}
     trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=agent)

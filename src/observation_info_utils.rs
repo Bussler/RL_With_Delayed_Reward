@@ -6,11 +6,11 @@ use pyo3::types::PyDict;
 #[derive(Debug, Clone)]
 pub struct Observation {
     pub player_position: Vector3<f64>,
-    pub target_positions: Vec<Vector3<f64>>,
-    pub target_velocities: Vec<Vector3<f64>>, // is set to zeros if target is dead
-    pub target_distances: Vec<f64>,           // is set to high value if target is dead
-    pub target_time_remaining: Vec<f64>,      // is set to high value if target is dead
-    pub target_death_mask: Vec<i8>,
+    pub target_positions: Vec<Vector3<f64>>, // zeros if target is dead
+    pub target_velocities: Vec<Vector3<f64>>, // zeros if target is dead
+    pub target_distances: Vec<f64>,          // 0 if target is dead
+    pub target_time_remaining: Vec<f64>,     // 0 if target is dead
+    pub target_death_mask: Vec<i8>,          // 1 if alive, 0 if dead
     pub time_left: f64,
 }
 
