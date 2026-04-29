@@ -118,29 +118,32 @@ class RudderRewardWrapper(gym.Wrapper):  # type: ignore[type-arg]
         """Take a step, optionally replacing the reward with RUDDER attribution."""
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        reward = float(reward)
+        original_reward = float(reward)
 
         # Flatten observation and action for RUDDER storage
         flat_obs = flatten_obs_dict(obs)
         flat_action = np.asarray(action, dtype=np.float32).ravel()
 
-        # Store transition
+        # Store transition (always using the *original* reward)
         self._ep_obs.append(flat_obs)
         self._ep_actions.append(flat_action)
-        self._ep_rewards.append(reward)
+        self._ep_rewards.append(original_reward)
 
         # Compute redistributed reward if past warmup
-        if self._completed_episodes >= self.warmup_episodes:
+        rudder_active = self._completed_episodes >= self.warmup_episodes
+        if rudder_active:
             r_rudder = self.redistributor.redistribute_step(flat_obs, flat_action, device=self.device)
-            reward = self.alpha * r_rudder + (1.0 - self.alpha) * reward
+            reward = self.alpha * r_rudder + (1.0 - self.alpha) * original_reward
+        else:
+            reward = original_reward
 
         # On episode end: store trajectory and maybe train predictor
         done = terminated or truncated
         if done:
             self._on_episode_end()
 
-        info["rudder_original_reward"] = reward
-        info["rudder_active"] = self._completed_episodes >= self.warmup_episodes
+        info["rudder_original_reward"] = original_reward
+        info["rudder_active"] = rudder_active
 
         return obs, reward, terminated, truncated, info
 
