@@ -175,20 +175,22 @@ impl DroneEnvironment {
         for target in &self.targets {
             let target_is_dead = target.is_dead();
 
+            if target_is_dead {
+                target_positions.push(Vector3::zeros());
+                target_velocities.push(Vector3::zeros());
+                target_distances.push(0.0);
+                target_time_remaining.push(0.0);
+                target_death_mask.push(0);
+                continue;
+            }
+
             target_positions.push(target.position);
-            target_velocities.push(if target_is_dead {
-                Vector3::zeros()
-            } else {
-                target.velocity
-            });
+            target_velocities.push(target.velocity);
 
             let dist = distance(self.player.position, target.position);
             target_distances.push(dist);
-            target_time_remaining.push(match target.remaining_time() {
-                Some(t) => t,
-                None => f64::MAX,
-            });
-            target_death_mask.push(if target_is_dead { 0 } else { 1 });
+            target_time_remaining.push(target.remaining_time().unwrap_or(f64::MAX));
+            target_death_mask.push(1);
         }
 
         Observation {
