@@ -1,7 +1,7 @@
 # RL_With_Delayed_Reward
 
 This project investigates reinforcement learning in environments with delayed rewards through a 3D target-catching simulation.  
-The experiments demonstrate that traditional delayed reward structures significantly hinder learning performance, while introducing intermediate reward signals and LSTM-enhanced value functions dramatically improves training convergence and agent effectiveness.  
+The experiments demonstrate that traditional delayed reward structures significantly hinder learning performance, while introducing intermediate reward signals and LSTM-enhanced value functions (like in [RUDDER](https://ml-jku.github.io/rudder/)) dramatically improves training convergence and agent effectiveness.  
 The simulation environment is implemented in Rust for performance optimization with a Python interface for RL training.
 
 ## Results
@@ -43,14 +43,14 @@ The findings in this project align with the [RUDDER](https://ml-jku.github.io/ru
 **LSTM Integration in PPO Value Function**: Incorporating Long Short-Term Memory (LSTM) networks into the value function of the Proximal Policy Optimization (PPO) algorithm yielded faster policy convergence and training acceleration:
 
 - **Standard PPO**: Traditional feedforward networks for both policy and value functions
-- **LSTM-Enhanced PPO**: LSTM integration specifically in the value function to capture temporal dependencies
+- **Rudder-Enhanced PPO**: LSTM integration specifically in the value function to capture temporal dependencies. The LSTM is trained in a separate training loop but parallel to the Policy and Value networks. The LSTM learns to predict the immediate impacts of an action and redistributes the reward from the end of the episodes to the corresponding actions.
 
-| Standard PPO | LSTM-Enhanced PPO |
+| Standard PPO | Rudder-Enhanced PPO |
 |:------------:|:-----------------:|
 | ![Standard PPO Performance](results/result_ppo_no_lstm.gif) | ![LSTM-Enhanced Agent Performance](results/result_ppo_with_lstm.gif) |
 | Traditional feedforward networks for both policy and value functions | LSTM integration in value function showing better temporal understanding and target prioritization |
 
-The LSTM-enhanced approach demonstrated:
+The Rudder-enhanced approach demonstrated:
 - Better handling of temporal relationships in the delayed reward setting
 - Improved ability to maintain information about target states and priorities over time
 
@@ -61,7 +61,7 @@ The combination of intermediate rewards and LSTM-enhanced value functions outper
 
 These results highlight the importance of:
 1. **Reward Engineering**: Even in naturally sparse reward environments, carefully designed intermediate signals can dramatically improve learning efficiency
-2. **Temporal Understanding**: The ability to maintain and utilize historical information (LSTMs) is crucial to help agents better understand long-term consequences in delayed reward scenarios
+2. **Temporal Understanding**: The ability to maintain and utilize historical information (LSTMs) and reward actions immediately is crucial to help agents better understand long-term consequences in delayed reward scenarios
 
 
 ## Gettings started
